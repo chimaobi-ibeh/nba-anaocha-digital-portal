@@ -1,7 +1,18 @@
 {
   "permissions": {
     "allow": [
-      "Bash(grep -r -i \"lovable\\\\|loveable\\\\|gpt.engineer\" /c/Users/user/Documents/nba-anaocha-digital-portal --include=*.tsx --include=*.ts --include=*.jsx --include=*.js --include=*.html --include=*.json --include=*.css --include=*.config.*)"
+      "Bash(grep -r -i \"lovable\\\\|loveable\\\\|gpt.engineer\" /c/Users/user/Documents/nba-anaocha-digital-portal --include=*.tsx --include=*.ts --include=*.jsx --include=*.js --include=*.html --include=*.json --include=*.css --include=*.config.*)",
+      "Bash(grep -E \"\\\\.\\(bak|old|orig|tmp|backup\\)$|bun\\\\.lock\")",
+      "Bash(ls -lh /c/Users/user/Documents/nba-anaocha-digital-portal/bun.lock* /c/Users/user/Documents/nba-anaocha-digital-portal/package-lock.json)",
+      "Bash(grep -r from.*components/ui /c/Users/user/Documents/nba-anaocha-digital-portal/src --include=*.tsx --include=*.ts)",
+      "Bash(wc -l /c/Users/user/Documents/nba-anaocha-digital-portal/src/components/ui/*.tsx)",
+      "Bash(ls /c/Users/user/Documents/nba-anaocha-digital-portal/src/components/ui/*.tsx)",
+      "Bash(xargs -n1 basename)",
+      "Bash(supabase --version)",
+      "Bash(npm list:*)",
+      "Bash(find /c/Users/user/Documents/nba-anaocha-digital-portal/supabase -type f -name *.ts)",
+      "Bash(grep -r \"\\\\.then\\\\\\(.*error\\\\|catch\\\\|\\\\.error\\\\\\)\" /c/Users/user/Documents/nba-anaocha-digital-portal/src/pages --include=*.tsx)",
+      "Bash(grep -n \"\\\\.then\\(\\({ data }\\)\" /c/Users/user/Documents/nba-anaocha-digital-portal/src/pages/anaocha/*.tsx /c/Users/user/Documents/nba-anaocha-digital-portal/src/pages/remuneration/*.tsx /c/Users/user/Documents/nba-anaocha-digital-portal/src/pages/admin/*.tsx)"
     ]
   }
 }
