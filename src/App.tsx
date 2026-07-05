@@ -1,4 +1,5 @@
-import { lazy, Suspense, useEffect } from "react";
+import { Suspense, useEffect } from "react";
+import { lazyWithRetry } from "@/lib/lazyWithRetry";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes, useLocation } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -21,34 +22,34 @@ import ResetPassword from "./pages/auth/ResetPassword.tsx";
 import CompleteProfile from "./pages/auth/CompleteProfile.tsx";
 
 // Lazy: anaocha portal
-const AnaochaDashboard    = lazy(() => import("./pages/anaocha/AnaochaDashboard.tsx"));
-const ApplyForServices    = lazy(() => import("./pages/anaocha/ApplyForServices.tsx"));
-const MyApplications      = lazy(() => import("./pages/anaocha/MyApplications.tsx"));
-const FindMember          = lazy(() => import("./pages/anaocha/FindMember.tsx"));
-const MyProfile           = lazy(() => import("./pages/anaocha/MyProfile.tsx"));
-const Settings            = lazy(() => import("./pages/anaocha/Settings.tsx"));
-const ContactUs           = lazy(() => import("./pages/anaocha/ContactUs.tsx"));
-const Notifications       = lazy(() => import("./pages/anaocha/Notifications.tsx"));
-const AnaochaPayments     = lazy(() => import("./pages/anaocha/AnaochaPayments.tsx"));
-const MyDues              = lazy(() => import("./pages/anaocha/MyDues.tsx"));
-const AboutBranch         = lazy(() => import("./pages/anaocha/AboutBranch.tsx"));
-const Resources           = lazy(() => import("./pages/Resources.tsx"));
-const PrivacyPolicy       = lazy(() => import("./pages/PrivacyPolicy.tsx"));
-const TermsOfService      = lazy(() => import("./pages/TermsOfService.tsx"));
+const AnaochaDashboard    = lazyWithRetry(() => import("./pages/anaocha/AnaochaDashboard.tsx"));
+const ApplyForServices    = lazyWithRetry(() => import("./pages/anaocha/ApplyForServices.tsx"));
+const MyApplications      = lazyWithRetry(() => import("./pages/anaocha/MyApplications.tsx"));
+const FindMember          = lazyWithRetry(() => import("./pages/anaocha/FindMember.tsx"));
+const MyProfile           = lazyWithRetry(() => import("./pages/anaocha/MyProfile.tsx"));
+const Settings            = lazyWithRetry(() => import("./pages/anaocha/Settings.tsx"));
+const ContactUs           = lazyWithRetry(() => import("./pages/anaocha/ContactUs.tsx"));
+const Notifications       = lazyWithRetry(() => import("./pages/anaocha/Notifications.tsx"));
+const AnaochaPayments     = lazyWithRetry(() => import("./pages/anaocha/AnaochaPayments.tsx"));
+const MyDues              = lazyWithRetry(() => import("./pages/anaocha/MyDues.tsx"));
+const AboutBranch         = lazyWithRetry(() => import("./pages/anaocha/AboutBranch.tsx"));
+const Resources           = lazyWithRetry(() => import("./pages/Resources.tsx"));
+const PrivacyPolicy       = lazyWithRetry(() => import("./pages/PrivacyPolicy.tsx"));
+const TermsOfService      = lazyWithRetry(() => import("./pages/TermsOfService.tsx"));
 
 // Lazy: admin
-const AdminDashboard    = lazy(() => import("./pages/admin/AdminDashboard.tsx"));
-const AdminApplications = lazy(() => import("./pages/admin/AdminApplications.tsx"));
-const AdminMembers      = lazy(() => import("./pages/admin/AdminMembers.tsx"));
-const AdminProfileChanges = lazy(() => import("./pages/admin/AdminProfileChanges.tsx"));
-const AdminNotify       = lazy(() => import("./pages/admin/AdminNotify.tsx"));
-const AdminContacts     = lazy(() => import("./pages/admin/AdminContacts.tsx"));
-const AdminAnnouncements = lazy(() => import("./pages/admin/AdminAnnouncements.tsx"));
-const AdminResources    = lazy(() => import("./pages/admin/AdminResources.tsx"));
-const AdminLeadership   = lazy(() => import("./pages/admin/AdminLeadership.tsx"));
-const AdminAuditLogs    = lazy(() => import("./pages/admin/AdminAuditLogs.tsx"));
-const AdminDues         = lazy(() => import("./pages/admin/AdminDues.tsx"));
-const AdminReporting    = lazy(() => import("./pages/admin/AdminReporting.tsx"));
+const AdminDashboard    = lazyWithRetry(() => import("./pages/admin/AdminDashboard.tsx"));
+const AdminApplications = lazyWithRetry(() => import("./pages/admin/AdminApplications.tsx"));
+const AdminMembers      = lazyWithRetry(() => import("./pages/admin/AdminMembers.tsx"));
+const AdminProfileChanges = lazyWithRetry(() => import("./pages/admin/AdminProfileChanges.tsx"));
+const AdminNotify       = lazyWithRetry(() => import("./pages/admin/AdminNotify.tsx"));
+const AdminContacts     = lazyWithRetry(() => import("./pages/admin/AdminContacts.tsx"));
+const AdminAnnouncements = lazyWithRetry(() => import("./pages/admin/AdminAnnouncements.tsx"));
+const AdminResources    = lazyWithRetry(() => import("./pages/admin/AdminResources.tsx"));
+const AdminLeadership   = lazyWithRetry(() => import("./pages/admin/AdminLeadership.tsx"));
+const AdminAuditLogs    = lazyWithRetry(() => import("./pages/admin/AdminAuditLogs.tsx"));
+const AdminDues         = lazyWithRetry(() => import("./pages/admin/AdminDues.tsx"));
+const AdminReporting    = lazyWithRetry(() => import("./pages/admin/AdminReporting.tsx"));
 
 const ScrollToTop = () => {
   const { pathname } = useLocation();
