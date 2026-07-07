@@ -52,7 +52,13 @@ const MyApplications = () => {
     if (!user) return;
     setReuploading(app.id);
     const ext  = file.name.split(".").pop();
-    const path = `${user.id}/${app.service_type}/payment_receipt.${ext}`;
+    // Keep the corrected receipt in this application's own folder. Fall back to
+    // a fresh folder for legacy rows saved before per-submission folders.
+    const existing: string | null = app.payment_receipt_url;
+    const folder = existing && existing.includes("/")
+      ? existing.slice(0, existing.lastIndexOf("/"))
+      : `${user.id}/${app.service_type}/${crypto.randomUUID()}`;
+    const path = `${folder}/payment_receipt.${ext}`;
     const { error: uploadErr } = await supabase.storage.from("uploads").upload(path, file, { upsert: true });
     if (uploadErr) {
       toast({ title: "Upload failed", description: uploadErr.message, variant: "destructive" });
@@ -148,9 +154,6 @@ const MyApplications = () => {
                         {PAYMENT_LABELS[app.payment_status] && (
                           <p className={`text-xs font-medium mt-0.5 ${PAYMENT_LABELS[app.payment_status].className}`}>
                             {PAYMENT_LABELS[app.payment_status].text}
-                            {app.payment_status === "verified" && app.bin && (
-                              <> — Receipt No: <span className="font-mono font-semibold">{app.bin}</span></>
-                            )}
                           </p>
                         )}
                       </div>

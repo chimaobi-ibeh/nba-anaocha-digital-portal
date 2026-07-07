@@ -131,11 +131,16 @@ const ApplyForServices = () => {
     if (!user || !openService) return;
     setSubmitting(true);
 
+    // Each submission gets its own folder so a repeat application for the same
+    // service can never overwrite an earlier one's documents or receipt.
+    const submissionId = crypto.randomUUID();
+    const folder = `${user.id}/${openService.serviceType}/${submissionId}`;
+
     // 1. Upload any files
     const fileUrls: string[] = [];
     for (const [key, file] of Object.entries(files)) {
       const ext  = file.name.split(".").pop();
-      const path = `${user.id}/${openService.serviceType}/${key}.${ext}`;
+      const path = `${folder}/${key}.${ext}`;
       const { error } = await supabase.storage.from("uploads").upload(path, file, { upsert: true });
       if (error) {
         toast({ title: "Upload failed", description: error.message, variant: "destructive" });
@@ -149,7 +154,7 @@ const ApplyForServices = () => {
     let receiptPath: string | null = null;
     if (!openService.free && receiptFile) {
       const ext = receiptFile.name.split(".").pop();
-      receiptPath = `${user.id}/${openService.serviceType}/payment_receipt.${ext}`;
+      receiptPath = `${folder}/payment_receipt.${ext}`;
       const { error } = await supabase.storage.from("uploads").upload(receiptPath, receiptFile, { upsert: true });
       if (error) {
         toast({ title: "Receipt upload failed", description: error.message, variant: "destructive" });
@@ -159,7 +164,7 @@ const ApplyForServices = () => {
     }
 
     // 3. Insert service application; the secretariat verifies the transfer
-    //    and the branch receipt number (BIN) is issued on approval.
+    //    before the application is processed.
     const fee = SERVICE_FEES[openService.serviceType] ?? 0;
     const { error: appErr } = await db
       .from("service_applications")

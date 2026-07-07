@@ -24,7 +24,6 @@ type UnifiedPayment = {
   type:        "service" | "dues";
   description: string;
   amount:      number | null;
-  bin:         string | null;
   status:      string;
   created_at:  string;
 };
@@ -46,11 +45,11 @@ const AnaochaPayments = () => {
 
     const [serviceRes, duesRes] = await Promise.all([
       db.from("service_applications")
-        .select("id, service_type, payment_amount, payment_status, bin, created_at")
+        .select("id, service_type, payment_amount, payment_status, created_at")
         .eq("user_id", user.id)
         .in("payment_status", ["uploaded", "verified", "rejected"]),
       db.from("dues_payments")
-        .select("id, amount, status, bin, paid_at, dues_items(title)")
+        .select("id, amount, status, paid_at, dues_items(title)")
         .eq("user_id", user.id)
         .not("paid_at", "is", null)
         .in("status", ["uploaded", "verified", "rejected"]),
@@ -67,7 +66,6 @@ const AnaochaPayments = () => {
       type:        "service",
       description: SERVICE_LABELS[r.service_type] || "Service Payment",
       amount:      r.payment_amount != null ? Number(r.payment_amount) : null,
-      bin:         r.bin,
       status:      r.payment_status,
       created_at:  r.created_at,
     }));
@@ -77,7 +75,6 @@ const AnaochaPayments = () => {
       type:        "dues",
       description: r.dues_items?.title || "Dues Payment",
       amount:      r.amount != null ? Number(r.amount) : null,
-      bin:         r.bin,
       status:      r.status,
       created_at:  r.paid_at,
     }));
@@ -95,12 +92,11 @@ const AnaochaPayments = () => {
 
   const handleExportCSV = () => {
     const rows = [
-      ["Type", "Description", "Amount (₦)", "Receipt No", "Status", "Date"],
+      ["Type", "Description", "Amount (₦)", "Status", "Date"],
       ...payments.map((p) => [
         p.type === "dues" ? "Dues" : "Service",
         p.description,
         p.amount !== null ? Number(p.amount).toFixed(2) : "-",
-        p.bin || "-",
         STATUS_LABELS[p.status]?.label || p.status,
         new Date(p.created_at).toLocaleDateString("en-NG", { day: "numeric", month: "short", year: "numeric" }),
       ]),
@@ -120,7 +116,7 @@ const AnaochaPayments = () => {
           <div>
             <h1 className="font-heading text-2xl md:text-3xl font-bold text-foreground">Payment History</h1>
             <p className="text-muted-foreground mt-1">
-              All payments submitted through the portal. Verified payments carry your official branch receipt number.
+              All dues and service payments submitted through the portal, and their verification status.
             </p>
           </div>
           {payments.length > 0 && (
@@ -176,7 +172,6 @@ const AnaochaPayments = () => {
                       <th className="text-left px-5 py-3 text-[10px] tracking-wider uppercase font-semibold text-muted-foreground">Type</th>
                       <th className="text-left px-5 py-3 text-[10px] tracking-wider uppercase font-semibold text-muted-foreground">Description</th>
                       <th className="text-left px-5 py-3 text-[10px] tracking-wider uppercase font-semibold text-muted-foreground">Amount</th>
-                      <th className="text-left px-5 py-3 text-[10px] tracking-wider uppercase font-semibold text-muted-foreground hidden sm:table-cell">Receipt No</th>
                       <th className="text-left px-5 py-3 text-[10px] tracking-wider uppercase font-semibold text-muted-foreground">Status</th>
                       <th className="text-left px-5 py-3 text-[10px] tracking-wider uppercase font-semibold text-muted-foreground">Date</th>
                     </tr>
@@ -198,9 +193,6 @@ const AnaochaPayments = () => {
                             {p.amount !== null
                               ? `₦${Number(p.amount).toLocaleString("en-NG", { minimumFractionDigits: 2 })}`
                               : "-"}
-                          </td>
-                          <td className="px-5 py-4 text-xs text-muted-foreground hidden sm:table-cell font-mono">
-                            {p.bin || "-"}
                           </td>
                           <td className="px-5 py-4">
                             <Badge variant="outline" className={`text-[10px] ${status?.className || ""}`}>

@@ -146,14 +146,10 @@ const AdminApplications = () => {
   const verifyPayment = async (app: any) => {
     if (!user) return;
     setPayReviewing(app.id);
-    // The BIN (branch receipt number) is issued by a DB trigger on this
-    // transition — read the row back to get it.
-    const { data: updated, error } = await db
+    const { error } = await db
       .from("service_applications")
       .update({ payment_status: "verified", payment_reviewed_by: user.id, payment_reviewed_at: new Date().toISOString() })
-      .eq("id", app.id)
-      .select("bin")
-      .single();
+      .eq("id", app.id);
     if (error) {
       toast({ title: "Failed to verify payment", description: error.message, variant: "destructive" });
       setPayReviewing(null);
@@ -164,16 +160,16 @@ const AdminApplications = () => {
     await supabase.from("notifications").insert({
       user_id: app.user_id,
       title: `Payment Verified: ${serviceLabel}`,
-      message: `Your payment for ${serviceLabel} has been verified by the secretariat.${updated?.bin ? ` Your branch receipt number is ${updated.bin}.` : ""}`,
+      message: `Your payment for ${serviceLabel} has been verified by the secretariat.`,
       type: "application_update",
     });
-    logAudit(user.id, "service_payment_verified", "service_application", app.id, { service_type: app.service_type, bin: updated?.bin ?? null });
+    logAudit(user.id, "service_payment_verified", "service_application", app.id, { service_type: app.service_type });
 
     setApplications((prev) => prev.map((a) => a.id === app.id
-      ? { ...a, payment_status: "verified", bin: updated?.bin ?? a.bin, payment_rejection_reason: null }
+      ? { ...a, payment_status: "verified", payment_rejection_reason: null }
       : a));
     setPayReviewing(null);
-    toast({ title: "Payment verified", description: updated?.bin ? `Receipt number ${updated.bin} issued.` : "The member has been notified." });
+    toast({ title: "Payment verified", description: "The member has been notified." });
   };
 
   const confirmRejectPayment = async () => {
@@ -374,12 +370,6 @@ const AdminApplications = () => {
                               <p className="font-medium">₦{Number(app.payment_amount).toLocaleString("en-NG")}</p>
                             </div>
                           )}
-                          {app.bin && (
-                            <div>
-                              <p className="text-xs text-muted-foreground">Receipt No</p>
-                              <p className="font-mono text-xs text-foreground truncate">{app.bin}</p>
-                            </div>
-                          )}
                         </div>
 
                         {/* Payment receipt review */}
@@ -394,7 +384,7 @@ const AdminApplications = () => {
                                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Bank Transfer Payment</p>
                                 <p className="text-sm text-foreground mt-0.5">
                                   {app.payment_status === "verified"
-                                    ? <>Verified{app.bin && <> — receipt no <span className="font-mono font-semibold">{app.bin}</span></>}</>
+                                    ? <>Verified</>
                                     : app.payment_status === "rejected"
                                     ? <>Receipt rejected{app.payment_rejection_reason && <> — {app.payment_rejection_reason}</>}</>
                                     : app.payment_status === "uploaded"

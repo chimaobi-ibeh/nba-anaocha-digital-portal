@@ -11,9 +11,6 @@ import { anaochaSidebarItems } from "@/lib/sidebarItems";
 import { DUES_CATEGORY_LABELS, getDueAmount } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 
-// The generated Supabase types don't yet include the `bin` column.
-const db = supabase as any;
-
 type DuesItem = {
   id: string; title: string; description: string | null; category: string;
   year: number; deadline: string | null; is_tiered: boolean;
@@ -26,7 +23,7 @@ type DuesItem = {
 type Payment = {
   dues_item_id: string; amount: number | null; status: string;
   receipt_url: string | null; paid_at: string | null;
-  rejection_reason: string | null; bin: string | null;
+  rejection_reason: string | null;
 };
 
 const STATUS_CONFIG = {
@@ -53,7 +50,7 @@ const MyDues = () => {
     setLoading(true);
     const [itemsRes, paymentsRes, profileRes] = await Promise.all([
       supabase.from("dues_items").select("*").eq("is_active", true).order("year", { ascending: false }).order("created_at"),
-      db.from("dues_payments").select("dues_item_id, amount, status, receipt_url, paid_at, rejection_reason, bin").eq("user_id", user.id),
+      supabase.from("dues_payments").select("dues_item_id, amount, status, receipt_url, paid_at, rejection_reason").eq("user_id", user.id),
       supabase.from("profiles").select("year_of_call, rank").eq("user_id", user.id).maybeSingle(),
     ]);
     setItems((itemsRes.data as DuesItem[]) ?? []);
@@ -206,11 +203,6 @@ const MyDues = () => {
                                   </span>
                                 )}
                               </div>
-                              {status === "verified" && payment?.bin && (
-                                <p className="text-xs text-green-700 font-semibold mt-2">
-                                  Receipt No: <span className="font-mono">{payment.bin}</span>
-                                </p>
-                              )}
                               {status === "rejected" && (
                                 <div className="mt-2 bg-red-50 border border-red-100 rounded px-3 py-2">
                                   <p className="text-xs font-semibold text-red-700 mb-0.5">Receipt not accepted{payment?.rejection_reason ? ":" : "."}</p>

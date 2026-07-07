@@ -57,7 +57,7 @@ const BankTransferDetails = ({ amountNaira }: { amountNaira?: number }) => {
       </dl>
       <p className="text-xs text-muted-foreground mt-3 leading-relaxed">
         After transferring, upload your bank receipt below. The secretariat will
-        review it and issue your official branch receipt number once confirmed.
+        review and confirm your payment.
       </p>
     </div>
   );

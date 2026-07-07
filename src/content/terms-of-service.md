@@ -45,7 +45,7 @@ The availability of any service may be modified or discontinued at the Branch's 
 
 **5.1** The Portal tracks branch dues, levies, and Bar Practicing Fees (BPF) assigned by the Branch. Members are required to fulfil their financial obligations as published in the Portal.
 
-**5.2** All payments are made by bank transfer to the Branch's designated bank account. After payment, you upload your transfer receipt on the Portal; the Branch Secretariat reviews the receipt and, once verified, issues an official branch receipt number for the transaction. A payment is only considered received when the Secretariat has verified it. The Branch does not collect or store card details.
+**5.2** All payments are made by bank transfer to the Branch's designated bank account. After payment, you upload your transfer receipt on the Portal and the Branch Secretariat reviews it. A payment is only considered received when the Secretariat has verified it. The Branch does not collect or store card details.
 
 **5.3** Service fees displayed on the Portal at the time of application are the applicable fees. The Branch reserves the right to revise fees at any time; revisions apply to applications made after the date of change.
 

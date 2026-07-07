@@ -32,6 +32,7 @@ const ContactUs           = lazyWithRetry(() => import("./pages/anaocha/ContactU
 const Notifications       = lazyWithRetry(() => import("./pages/anaocha/Notifications.tsx"));
 const NotificationDetail  = lazyWithRetry(() => import("./pages/anaocha/NotificationDetail.tsx"));
 const Meetings            = lazyWithRetry(() => import("./pages/anaocha/Meetings.tsx"));
+const DocumentRemuneration = lazyWithRetry(() => import("./pages/anaocha/DocumentRemuneration.tsx"));
 const AnaochaPayments     = lazyWithRetry(() => import("./pages/anaocha/AnaochaPayments.tsx"));
 const MyDues              = lazyWithRetry(() => import("./pages/anaocha/MyDues.tsx"));
 const AboutBranch         = lazyWithRetry(() => import("./pages/anaocha/AboutBranch.tsx"));
@@ -48,6 +49,7 @@ const AdminNotify       = lazyWithRetry(() => import("./pages/admin/AdminNotify.
 const AdminContacts     = lazyWithRetry(() => import("./pages/admin/AdminContacts.tsx"));
 const AdminResources    = lazyWithRetry(() => import("./pages/admin/AdminResources.tsx"));
 const AdminMeetings     = lazyWithRetry(() => import("./pages/admin/AdminMeetings.tsx"));
+const AdminRemuneration = lazyWithRetry(() => import("./pages/admin/AdminRemuneration.tsx"));
 const AdminLeadership   = lazyWithRetry(() => import("./pages/admin/AdminLeadership.tsx"));
 const AdminAuditLogs    = lazyWithRetry(() => import("./pages/admin/AdminAuditLogs.tsx"));
 const AdminDues         = lazyWithRetry(() => import("./pages/admin/AdminDues.tsx"));
@@ -110,6 +112,7 @@ const App = () => (
               <Route path="/anaocha/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
               <Route path="/anaocha/notifications/:id" element={<ProtectedRoute><NotificationDetail /></ProtectedRoute>} />
               <Route path="/anaocha/meetings" element={<ProtectedRoute><Meetings /></ProtectedRoute>} />
+              <Route path="/anaocha/remuneration" element={<ProtectedRoute><DocumentRemuneration /></ProtectedRoute>} />
               <Route path="/anaocha/contact" element={<ContactUs />} />
               <Route path="/anaocha/about" element={<ProtectedRoute><AboutBranch /></ProtectedRoute>} />
 
@@ -122,6 +125,7 @@ const App = () => (
               <Route path="/admin/notify" element={<AdminRoute><AdminNotify /></AdminRoute>} />
               <Route path="/admin/resources" element={<AdminRoute><AdminResources /></AdminRoute>} />
               <Route path="/admin/meetings" element={<AdminRoute><AdminMeetings /></AdminRoute>} />
+              <Route path="/admin/remuneration" element={<AdminRoute><AdminRemuneration /></AdminRoute>} />
               <Route path="/admin/leadership" element={<AdminRoute><AdminLeadership /></AdminRoute>} />
               <Route path="/admin/dues"       element={<AdminRoute><AdminDues /></AdminRoute>} />
               <Route path="/admin/audit-logs" element={<AdminRoute><AdminAuditLogs /></AdminRoute>} />

@@ -17,7 +17,7 @@ Email: support@nbaanaocha.org.ng
 
 **3.2 Service Application Data** — information submitted in application forms and uploaded documents (e.g. passport photographs, BPF receipts, branch dues receipts).
 
-**3.3 Dues and Financial Data** — dues status, uploaded bank transfer receipts, branch receipt numbers, and transaction amounts and dates. Card details are never collected or stored by us.
+**3.3 Dues and Financial Data** — dues status, uploaded bank transfer receipts, remuneration register numbers, and transaction amounts and dates. Card details are never collected or stored by us.
 
 **3.4 Communications Data** — contact form submissions and Portal notifications.
 

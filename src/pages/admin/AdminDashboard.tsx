@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Users, ClipboardList, UserPlus, UserCog, FileCheck, Mail, Landmark, CreditCard } from "lucide-react";
+import { Users, ClipboardList, UserPlus, UserCog, FileCheck, Mail, Landmark, CreditCard, Stamp } from "lucide-react";
 import AdminLayout from "@/components/AdminLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
@@ -21,7 +21,7 @@ const AdminDashboard = () => {
         const sb = supabase as any;
         const [
           members, pendingRegs, applications, profileChanges,
-          receipts, contacts, duesPaid,
+          receipts, contacts, duesPaid, remuneration,
         ] = await Promise.all([
           sb.from("profiles").select("id", { count: "exact", head: true }).eq("portal_access", "anaocha"),
           sb.from("profiles").select("id", { count: "exact", head: true }).eq("portal_access", "anaocha").eq("status", "pending"),
@@ -30,6 +30,7 @@ const AdminDashboard = () => {
           sb.from("dues_payments").select("id", { count: "exact", head: true }).eq("status", "uploaded"),
           sb.from("contact_messages").select("id", { count: "exact", head: true }).is("replied_at", null),
           sb.from("dues_payments").select("amount").eq("status", "verified").gte("paid_at", yearStart),
+          sb.from("remuneration_receipts").select("id", { count: "exact", head: true }).eq("status", "uploaded"),
         ]);
         const apps = applications.data || [];
         setStats({
@@ -39,6 +40,7 @@ const AdminDashboard = () => {
           pendingApps:      apps.filter((a: any) => a.status === "pending").length,
           profileChanges:   profileChanges.count || 0,
           receipts:         receipts.count || 0,
+          remuneration:     remuneration.count || 0,
           contacts:         contacts.count || 0,
           duesRevenue:      (duesPaid.data || []).reduce((s: number, p: any) => s + Number(p.amount || 0), 0),
           serviceRevenue:   apps
@@ -61,6 +63,7 @@ const AdminDashboard = () => {
     { label: "Pending Applications",  value: stats.pendingApps,    icon: ClipboardList, href: "/admin/applications" },
     { label: "Profile Changes",       value: stats.profileChanges, icon: UserCog,       href: "/admin/profile-changes" },
     { label: "Receipts to Verify",    value: stats.receipts,       icon: FileCheck,     href: "/admin/dues" },
+    { label: "Remuneration Receipts", value: stats.remuneration,   icon: Stamp,         href: "/admin/remuneration" },
     { label: "Unreplied Messages",    value: stats.contacts,       icon: Mail,          href: "/admin/contacts" },
   ];
 

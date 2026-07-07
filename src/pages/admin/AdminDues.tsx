@@ -24,12 +24,8 @@ type DuesItem = {
 type DuesPayment = {
   user_id: string; status: string; amount: number | null;
   paid_at: string | null; receipt_url: string | null; rejection_reason: string | null;
-  bin: string | null;
   profiles: { first_name: string | null; surname: string | null; email: string | null; year_of_call: string | null } | null;
 };
-
-// The generated Supabase types don't yet include the `bin` column.
-const db = supabase as any;
 
 type Member = { user_id: string; first_name: string | null; surname: string | null; email: string | null; year_of_call: string | null; rank: string | null };
 
@@ -93,9 +89,9 @@ const AdminDues = () => {
 
   const loadCompliance = async (itemId: string, force = false) => {
     if (compliance[itemId] && !force) return;
-    const { data } = await db
+    const { data } = await supabase
       .from("dues_payments")
-      .select("user_id, status, amount, paid_at, receipt_url, rejection_reason, bin, profiles(first_name, surname, email, year_of_call)")
+      .select("user_id, status, amount, paid_at, receipt_url, rejection_reason, profiles(first_name, surname, email, year_of_call)")
       .eq("dues_item_id", itemId);
     setCompliance(prev => ({ ...prev, [itemId]: (data as any) ?? [] }));
   };
@@ -436,7 +432,6 @@ const AdminDues = () => {
                                 <th className="text-left py-2 px-3 text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Amount</th>
                                 <th className="text-left py-2 px-3 text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Status</th>
                                 <th className="text-left py-2 px-3 text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Date</th>
-                                <th className="text-left py-2 px-3 text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Receipt No</th>
                                 <th className="text-left py-2 px-3 text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Receipt</th>
                               </tr>
                             </thead>
@@ -497,9 +492,6 @@ const AdminDues = () => {
                                     </td>
                                     <td className="py-2.5 px-3 text-muted-foreground text-xs">
                                       {p?.paid_at ? new Date(p.paid_at).toLocaleDateString("en-NG", { day: "numeric", month: "short", year: "numeric" }) : "-"}
-                                    </td>
-                                    <td className="py-2.5 px-3 font-mono text-xs text-muted-foreground">
-                                      {p?.bin || "-"}
                                     </td>
                                     <td className="py-2.5 px-3">
                                       <div className="flex items-center gap-1.5 flex-wrap">
