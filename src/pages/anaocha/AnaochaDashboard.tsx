@@ -9,7 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { anaochaSidebarItems } from "@/lib/sidebarItems";
 import { SERVICE_LABELS } from "@/lib/constants";
 import {
-  FileText, Users, Phone, Bell, ClipboardList, ArrowRight, BookMarked, Megaphone, ExternalLink, Scale, Landmark,
+  FileText, Users, Phone, Bell, ClipboardList, ArrowRight, ExternalLink, Scale, Landmark,
 } from "lucide-react";
 
 const REMUNERATION_URL = import.meta.env.VITE_REMUNERATION_PORTAL_URL || "#";
@@ -34,23 +34,20 @@ const AnaochaDashboard = () => {
   const [recentApplications, setRecentApplications] = useState<any[]>([]);
   const [recentNotifications, setRecentNotifications] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [announcements, setAnnouncements] = useState<any[]>([]);
 
   useEffect(() => {
     if (!user) return;
 
     const load = async () => {
-      const [profileRes, appsRes, notifsRes, announcementsRes, duesItemsRes, duesPaymentsRes] = await Promise.all([
+      const [profileRes, appsRes, notifsRes, duesItemsRes, duesPaymentsRes] = await Promise.all([
         supabase.from("profiles").select("first_name, surname, year_of_call, branch, lbian").eq("user_id", user.id).single(),
         supabase.from("service_applications").select("id, service_type, status, created_at").eq("user_id", user.id).order("created_at", { ascending: false }),
         supabase.from("notifications").select("id, title, message, read, created_at").eq("user_id", user.id).order("created_at", { ascending: false }).limit(4),
-        supabase.from("announcements").select("id, title, content, created_at").or("portal.eq.anaocha,portal.eq.both").eq("published", true).order("created_at", { ascending: false }).limit(3),
         supabase.from("dues_items").select("id").eq("is_active", true),
         supabase.from("dues_payments").select("dues_item_id, status").eq("user_id", user.id),
       ]);
 
       setProfile(profileRes.data);
-      setAnnouncements(announcementsRes.data || []);
       const apps = appsRes.data || [];
       const allDuesIds = (duesItemsRes.data || []).map((d: any) => d.id);
       // uploaded = awaiting secretariat review (not nagged as outstanding);
@@ -178,28 +175,6 @@ const AnaochaDashboard = () => {
           </div>
         </div>
 
-        {/* Announcements */}
-        {announcements.length > 0 && (
-          <div>
-            <h2 className="font-heading text-lg font-semibold text-foreground mb-3 flex items-center gap-2">
-              <Megaphone className="h-5 w-5 text-accent" /> Announcements
-            </h2>
-            <div className="space-y-3">
-              {announcements.map((a) => (
-                <Card key={a.id} className="shadow-card border-l-4 border-l-accent">
-                  <CardContent className="p-4">
-                    <p className="font-semibold text-sm text-card-foreground">{a.title}</p>
-                    <p className="text-sm text-muted-foreground mt-1">{a.content}</p>
-                    <p className="text-xs text-muted-foreground/70 mt-2">
-                      {new Date(a.created_at).toLocaleDateString("en-NG", { day: "numeric", month: "short", year: "numeric" })}
-                    </p>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </div>
-        )}
-
         {/* Bottom row: recent applications + recent notifications */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
@@ -270,17 +245,19 @@ const AnaochaDashboard = () => {
                 ) : (
                   <ul className="divide-y divide-border">
                     {recentNotifications.map((n) => (
-                      <li key={n.id} className={`px-5 py-3 ${!n.read ? "bg-primary/5" : ""}`}>
-                        <div className="flex items-start justify-between gap-2">
-                          <p className={`text-sm font-medium ${!n.read ? "text-foreground" : "text-muted-foreground"}`}>
-                            {n.title}
+                      <li key={n.id}>
+                        <Link to={`/anaocha/notifications/${n.id}`} className={`block px-5 py-3 hover:bg-muted/50 transition-colors ${!n.read ? "bg-primary/5" : ""}`}>
+                          <div className="flex items-start justify-between gap-2">
+                            <p className={`text-sm font-medium ${!n.read ? "text-foreground" : "text-muted-foreground"}`}>
+                              {n.title}
+                            </p>
+                            {!n.read && <span className="h-2 w-2 rounded-full bg-primary flex-shrink-0 mt-1.5" />}
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{n.message}</p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {new Date(n.created_at).toLocaleDateString("en-NG", { day: "numeric", month: "short", year: "numeric" })}
                           </p>
-                          {!n.read && <span className="h-2 w-2 rounded-full bg-primary flex-shrink-0 mt-1.5" />}
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{n.message}</p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {new Date(n.created_at).toLocaleDateString("en-NG", { day: "numeric", month: "short", year: "numeric" })}
-                        </p>
+                        </Link>
                       </li>
                     ))}
                   </ul>

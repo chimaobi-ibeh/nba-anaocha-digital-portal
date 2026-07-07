@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { Clock, CheckCircle, XCircle, BookOpen, Trash2, Loader2 } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Clock, CheckCircle, XCircle, BookOpen, Trash2, Loader2, Upload } from "lucide-react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +11,15 @@ import { anaochaSidebarItems } from "@/lib/sidebarItems";
 import { SERVICE_LABELS } from "@/lib/constants";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "react-router-dom";
+
+// The generated Supabase types don't yet include the payment receipt columns.
+const db = supabase as any;
+
+const PAYMENT_LABELS: Record<string, { text: string; className: string }> = {
+  uploaded: { text: "Payment receipt awaiting verification", className: "text-blue-700" },
+  verified: { text: "Payment verified",                      className: "text-green-700" },
+  rejected: { text: "Payment receipt not accepted",          className: "text-red-700" },
+};
 
 const SERVICE_ICONS: Record<string, string> = {
   nba_diary:                 "📘",
@@ -35,6 +44,35 @@ const MyApplications = () => {
   const [error, setError] = useState<string | null>(null);
   const [withdrawTarget, setWithdrawTarget] = useState<any | null>(null);
   const [withdrawing, setWithdrawing] = useState(false);
+  const [reuploading, setReuploading] = useState<string | null>(null);
+  const fileRefs = useRef<Record<string, HTMLInputElement | null>>({});
+
+  // Resubmit a corrected bank-transfer receipt after a rejection.
+  const reuploadReceipt = async (app: any, file: File) => {
+    if (!user) return;
+    setReuploading(app.id);
+    const ext  = file.name.split(".").pop();
+    const path = `${user.id}/${app.service_type}/payment_receipt.${ext}`;
+    const { error: uploadErr } = await supabase.storage.from("uploads").upload(path, file, { upsert: true });
+    if (uploadErr) {
+      toast({ title: "Upload failed", description: uploadErr.message, variant: "destructive" });
+      setReuploading(null);
+      return;
+    }
+    const { error } = await db
+      .from("service_applications")
+      .update({ payment_receipt_url: path, payment_status: "uploaded" })
+      .eq("id", app.id);
+    setReuploading(null);
+    if (error) {
+      toast({ title: "Failed to resubmit", description: error.message, variant: "destructive" });
+      return;
+    }
+    setApplications((prev) => prev.map((a) => a.id === app.id
+      ? { ...a, payment_receipt_url: path, payment_status: "uploaded", payment_rejection_reason: null }
+      : a));
+    toast({ title: "Receipt resubmitted", description: "Your new receipt is awaiting secretariat review." });
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -107,8 +145,13 @@ const MyApplications = () => {
                         <p className="text-xs text-muted-foreground">
                           Submitted {new Date(app.created_at).toLocaleDateString("en-NG", { day: "numeric", month: "long", year: "numeric" })}
                         </p>
-                        {app.payment_status === "paid" && (
-                          <p className="text-xs text-green-700 font-medium mt-0.5">Payment confirmed</p>
+                        {PAYMENT_LABELS[app.payment_status] && (
+                          <p className={`text-xs font-medium mt-0.5 ${PAYMENT_LABELS[app.payment_status].className}`}>
+                            {PAYMENT_LABELS[app.payment_status].text}
+                            {app.payment_status === "verified" && app.bin && (
+                              <> — Receipt No: <span className="font-mono font-semibold">{app.bin}</span></>
+                            )}
+                          </p>
                         )}
                       </div>
                       <div className="flex items-center gap-2 flex-shrink-0">
@@ -132,6 +175,39 @@ const MyApplications = () => {
                       <div className="mt-3 bg-red-50 border border-red-100 rounded-md px-3 py-2">
                         <p className="text-xs font-semibold text-red-700 mb-0.5">Reason for rejection</p>
                         <p className="text-sm text-red-800">{app.rejection_reason}</p>
+                      </div>
+                    )}
+
+                    {app.payment_status === "rejected" && (
+                      <div className="mt-3 bg-red-50 border border-red-100 rounded-md px-3 py-2.5">
+                        <p className="text-xs font-semibold text-red-700 mb-0.5">
+                          Payment receipt not accepted{app.payment_rejection_reason ? ":" : "."}
+                        </p>
+                        {app.payment_rejection_reason && (
+                          <p className="text-sm text-red-800">{app.payment_rejection_reason}</p>
+                        )}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="mt-2 gap-1.5 h-8 text-xs"
+                          disabled={reuploading === app.id}
+                          onClick={() => fileRefs.current[app.id]?.click()}
+                        >
+                          {reuploading === app.id
+                            ? <><Loader2 className="h-3.5 w-3.5 animate-spin" />Uploading...</>
+                            : <><Upload className="h-3.5 w-3.5" />Upload Corrected Receipt</>}
+                        </Button>
+                        <input
+                          ref={(el) => { fileRefs.current[app.id] = el; }}
+                          type="file"
+                          accept="image/*,.pdf"
+                          className="hidden"
+                          onChange={(e) => {
+                            const f = e.target.files?.[0];
+                            if (f) reuploadReceipt(app, f);
+                            e.target.value = "";
+                          }}
+                        />
                       </div>
                     )}
                   </CardContent>

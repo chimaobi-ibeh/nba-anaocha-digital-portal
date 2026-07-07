@@ -21,16 +21,15 @@ const AdminDashboard = () => {
         const sb = supabase as any;
         const [
           members, pendingRegs, applications, profileChanges,
-          receipts, contacts, duesPaid, servicePaid,
+          receipts, contacts, duesPaid,
         ] = await Promise.all([
           sb.from("profiles").select("id", { count: "exact", head: true }).eq("portal_access", "anaocha"),
           sb.from("profiles").select("id", { count: "exact", head: true }).eq("portal_access", "anaocha").eq("status", "pending"),
-          sb.from("service_applications").select("id, status, service_type, created_at").order("created_at", { ascending: false }),
+          sb.from("service_applications").select("id, status, service_type, payment_status, payment_amount, created_at").order("created_at", { ascending: false }),
           sb.from("profile_change_requests").select("id", { count: "exact", head: true }).eq("status", "pending"),
           sb.from("dues_payments").select("id", { count: "exact", head: true }).eq("status", "uploaded"),
           sb.from("contact_messages").select("id", { count: "exact", head: true }).is("replied_at", null),
-          sb.from("dues_payments").select("amount").eq("status", "paid").gte("paid_at", yearStart),
-          sb.from("payments").select("amount").eq("status", "success").gte("created_at", yearStart),
+          sb.from("dues_payments").select("amount").eq("status", "verified").gte("paid_at", yearStart),
         ]);
         const apps = applications.data || [];
         setStats({
@@ -42,7 +41,9 @@ const AdminDashboard = () => {
           receipts:         receipts.count || 0,
           contacts:         contacts.count || 0,
           duesRevenue:      (duesPaid.data || []).reduce((s: number, p: any) => s + Number(p.amount || 0), 0),
-          serviceRevenue:   (servicePaid.data || []).reduce((s: number, p: any) => s + Number(p.amount || 0), 0),
+          serviceRevenue:   apps
+            .filter((a: any) => a.payment_status === "verified" && a.created_at >= yearStart)
+            .reduce((s: number, a: any) => s + Number(a.payment_amount || 0), 0),
         });
         setRecentApplications(apps.slice(0, 5));
         setLoading(false);

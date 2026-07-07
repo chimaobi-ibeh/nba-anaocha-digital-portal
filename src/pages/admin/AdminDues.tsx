@@ -24,8 +24,12 @@ type DuesItem = {
 type DuesPayment = {
   user_id: string; status: string; amount: number | null;
   paid_at: string | null; receipt_url: string | null; rejection_reason: string | null;
+  bin: string | null;
   profiles: { first_name: string | null; surname: string | null; email: string | null; year_of_call: string | null } | null;
 };
+
+// The generated Supabase types don't yet include the `bin` column.
+const db = supabase as any;
 
 type Member = { user_id: string; first_name: string | null; surname: string | null; email: string | null; year_of_call: string | null; rank: string | null };
 
@@ -89,9 +93,9 @@ const AdminDues = () => {
 
   const loadCompliance = async (itemId: string, force = false) => {
     if (compliance[itemId] && !force) return;
-    const { data } = await supabase
+    const { data } = await db
       .from("dues_payments")
-      .select("user_id, status, amount, paid_at, receipt_url, rejection_reason, profiles(first_name, surname, email, year_of_call)")
+      .select("user_id, status, amount, paid_at, receipt_url, rejection_reason, bin, profiles(first_name, surname, email, year_of_call)")
       .eq("dues_item_id", itemId);
     setCompliance(prev => ({ ...prev, [itemId]: (data as any) ?? [] }));
   };
@@ -150,8 +154,8 @@ const AdminDues = () => {
 
   const f = (key: string, val: any) => setForm(p => ({ ...p, [key]: val }));
 
-  // 'uploaded' means awaiting review — only Paystack-paid and admin-verified count.
-  const paidCount    = (itemId: string) => (compliance[itemId] ?? []).filter(p => p.status === "paid" || p.status === "verified").length;
+  // 'uploaded' means awaiting review — only secretariat-verified receipts count.
+  const paidCount    = (itemId: string) => (compliance[itemId] ?? []).filter(p => p.status === "verified").length;
   const outstanding  = (item: DuesItem) => members.length - paidCount(item.id);
 
   // ── Receipt review ──────────────────────────────────────────────────────
@@ -432,9 +436,8 @@ const AdminDues = () => {
                                 <th className="text-left py-2 px-3 text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Amount</th>
                                 <th className="text-left py-2 px-3 text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Status</th>
                                 <th className="text-left py-2 px-3 text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Date</th>
-                                {item.requires_upload && (
-                                  <th className="text-left py-2 px-3 text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Receipt</th>
-                                )}
+                                <th className="text-left py-2 px-3 text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Receipt No</th>
+                                <th className="text-left py-2 px-3 text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Receipt</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-border">
@@ -473,10 +476,10 @@ const AdminDues = () => {
                                       {item.requires_upload ? "-" : memberAmount > 0 ? `₦${memberAmount.toLocaleString("en-NG")}` : "-"}
                                     </td>
                                     <td className="py-2.5 px-3">
-                                      {status === "paid" || status === "verified" ? (
+                                      {status === "verified" ? (
                                         <span className="inline-flex items-center gap-1 text-green-700 text-xs font-semibold">
                                           <CheckCircle className="h-3.5 w-3.5" />
-                                          {status === "verified" ? "Verified" : "Paid"}
+                                          Verified
                                         </span>
                                       ) : status === "uploaded" ? (
                                         <span className="inline-flex items-center gap-1 text-blue-700 text-xs font-semibold">
@@ -495,9 +498,11 @@ const AdminDues = () => {
                                     <td className="py-2.5 px-3 text-muted-foreground text-xs">
                                       {p?.paid_at ? new Date(p.paid_at).toLocaleDateString("en-NG", { day: "numeric", month: "short", year: "numeric" }) : "-"}
                                     </td>
-                                    {item.requires_upload && (
-                                      <td className="py-2.5 px-3">
-                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                    <td className="py-2.5 px-3 font-mono text-xs text-muted-foreground">
+                                      {p?.bin || "-"}
+                                    </td>
+                                    <td className="py-2.5 px-3">
+                                      <div className="flex items-center gap-1.5 flex-wrap">
                                           {p?.receipt_url && (
                                             <Button size="sm" variant="ghost" className="h-7 px-2 text-xs gap-1" onClick={() => viewReceipt(p.receipt_url!)}>
                                               <FileText className="h-3.5 w-3.5" />View
@@ -527,10 +532,9 @@ const AdminDues = () => {
                                               </Button>
                                             </>
                                           )}
-                                          {!p?.receipt_url && status !== "uploaded" && <span className="text-xs text-muted-foreground">-</span>}
-                                        </div>
-                                      </td>
-                                    )}
+                                        {!p?.receipt_url && status !== "uploaded" && <span className="text-xs text-muted-foreground">-</span>}
+                                      </div>
+                                    </td>
                                   </tr>
                                 );
                               })}

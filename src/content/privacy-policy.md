@@ -17,7 +17,7 @@ Email: support@nbaanaocha.org.ng
 
 **3.2 Service Application Data** — information submitted in application forms and uploaded documents (e.g. passport photographs, BPF receipts, branch dues receipts).
 
-**3.3 Dues and Financial Data** — dues status, Paystack payment references, uploaded compliance receipts, and transaction amounts and dates. Card details are never stored by us.
+**3.3 Dues and Financial Data** — dues status, uploaded bank transfer receipts, branch receipt numbers, and transaction amounts and dates. Card details are never collected or stored by us.
 
 **3.4 Communications Data** — contact form submissions and Portal notifications.
 
@@ -30,7 +30,7 @@ Email: support@nbaanaocha.org.ng
 | Managing your member account and profile | Contract / Legitimate interests |
 | Processing service applications | Contract / Legitimate interests |
 | Tracking dues and payments | Contract / Legal obligation |
-| Verifying payments with Paystack | Contract |
+| Reviewing and verifying uploaded payment receipts | Contract |
 | Displaying your profile in the member directory | Legitimate interests |
 | Sending transactional emails | Contract / Legitimate interests |
 | Administrative oversight and audit logging | Legitimate interests / Legal obligation |
@@ -48,7 +48,6 @@ Email: support@nbaanaocha.org.ng
 |---|---|---|
 | **BeamX Solutions Ltd** | Platform developer and technical operator | Nigeria |
 | **Supabase Inc.** | Database, authentication, and file storage | EU (France) |
-| **Paystack Commerce Inc.** | Payment processing | Nigeria / International |
 | **Resend Inc.** | Transactional email delivery | International |
 | **Vercel Inc.** | Web hosting and content delivery | International |
 

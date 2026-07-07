@@ -11,6 +11,14 @@ export const BRANCH_CONTACT = {
   website: "www.nbaanaocha.org.ng",
 } as const;
 
+// All portal payments are made by bank transfer to this account; the member
+// then uploads the transfer receipt for secretariat review.
+export const BRANCH_BANK_ACCOUNT = {
+  bankName: "Access Bank PLC",
+  accountName: "NBA Anaocha Branch",
+  accountNumber: "0696557772",
+} as const;
+
 // Branch committees. Used both on the landing page and as the admin dropdown
 // when assigning a committee member, so the names stay in sync.
 export const COMMITTEE_NAMES = [
@@ -24,6 +32,9 @@ export const COMMITTEE_NAMES = [
   "Publicity",
   "Sports",
   "Bar Centre",
+  "Continuing Legal Education",
+  "Advisory",
+  "Bar/Bench Relationship",
 ] as const;
 
 export const DUES_CATEGORY_LABELS: Record<string, string> = {

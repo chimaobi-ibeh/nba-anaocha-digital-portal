@@ -12,10 +12,18 @@ import { COMMITTEE_NAMES } from "@/lib/constants";
 const db = supabase as any;
 
 const CATEGORIES = [
-  { value: "executive", label: "Branch Executive" },
-  { value: "committee", label: "Committee Member" },
-  { value: "patron",    label: "Grand Patron / Founder" },
+  { value: "executive",     label: "Branch Executive" },
+  { value: "committee",     label: "Committee Member" },
+  { value: "patron",        label: "Grand Patron / Founder" },
+  { value: "leader_of_bar", label: "Leader of the Bar / 1st SAN of the Branch" },
 ];
+
+// Categories whose role is conveyed by the category itself, so the position
+// field is hidden in the form and defaulted for the NOT NULL column.
+const TITLED_CATEGORIES: Record<string, string> = {
+  patron:        "Grand Patron / Founder",
+  leader_of_bar: "Leader of the Bar / 1st SAN of the Branch",
+};
 
 const emptyForm = {
   name: "",
@@ -64,17 +72,15 @@ const AdminLeadership = () => {
     toast({ title: "Photo uploaded" });
   };
 
-  const isPatron = form.category === "patron";
+  const isTitled = form.category in TITLED_CATEGORIES;
 
   const handleSave = async () => {
     if (!form.name.trim())     { toast({ title: "Name is required", variant: "destructive" }); return; }
-    if (!isPatron && !form.position.trim()) { toast({ title: "Position is required", variant: "destructive" }); return; }
+    if (!isTitled && !form.position.trim()) { toast({ title: "Position is required", variant: "destructive" }); return; }
     setSaving(true);
     const payload = {
       name: form.name.trim(),
-      // The Grand Patron's role is conveyed by the category, so the position
-      // field is hidden — fall back to a sensible value for the NOT NULL column.
-      position: isPatron ? (form.position.trim() || "Grand Patron / Founder") : form.position.trim(),
+      position: isTitled ? (form.position.trim() || TITLED_CATEGORIES[form.category]) : form.position.trim(),
       category: form.category,
       committee: form.category === "committee" ? form.committee : null,
       photo_url: form.photo_url || null,
@@ -137,7 +143,7 @@ const AdminLeadership = () => {
                   <input type="text" value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
                     placeholder="e.g. Barr. John Doe" className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
                 </div>
-                {!isPatron && (
+                {!isTitled && (
                   <div>
                     <label className="text-sm font-medium text-foreground">Position / Role</label>
                     <input type="text" value={form.position} onChange={(e) => setForm((p) => ({ ...p, position: e.target.value }))}
@@ -215,7 +221,10 @@ const AdminLeadership = () => {
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="font-semibold text-sm text-card-foreground truncate">{p.name}</p>
                         <Badge variant={p.category === "committee" ? "secondary" : "default"}>
-                          {p.category === "executive" ? "Executive" : p.category === "patron" ? "Grand Patron" : (p.committee || "Committee")}
+                          {p.category === "executive" ? "Executive"
+                            : p.category === "patron" ? "Grand Patron"
+                            : p.category === "leader_of_bar" ? "Leader of the Bar"
+                            : (p.committee || "Committee")}
                         </Badge>
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5">{p.position}</p>

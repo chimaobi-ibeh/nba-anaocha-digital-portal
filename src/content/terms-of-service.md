@@ -45,13 +45,13 @@ The availability of any service may be modified or discontinued at the Branch's 
 
 **5.1** The Portal tracks branch dues, levies, and Bar Practicing Fees (BPF) assigned by the Branch. Members are required to fulfil their financial obligations as published in the Portal.
 
-**5.2** All online payments are processed by **Paystack** (Paystack Commerce Inc.), a third-party payment gateway. By making a payment, you also agree to Paystack's terms and conditions. The Branch does not store your card details.
+**5.2** All payments are made by bank transfer to the Branch's designated bank account. After payment, you upload your transfer receipt on the Portal; the Branch Secretariat reviews the receipt and, once verified, issues an official branch receipt number for the transaction. A payment is only considered received when the Secretariat has verified it. The Branch does not collect or store card details.
 
 **5.3** Service fees displayed on the Portal at the time of application are the applicable fees. The Branch reserves the right to revise fees at any time; revisions apply to applications made after the date of change.
 
 **5.4** Processing fees are non-refundable once a service request has been accepted. Disputes must be raised with the Secretariat within **14 days** of the transaction date.
 
-**5.5** Uploaded receipts for dues compliance are declarations that the document is genuine and unaltered. Submission of false or forged receipts is a professional misconduct matter and will be referred to the appropriate NBA disciplinary authority.
+**5.5** Every uploaded receipt is a declaration that the document is genuine and unaltered and that the underlying payment was made by you. Submission of false or forged receipts is a professional misconduct matter and will be referred to the appropriate NBA disciplinary authority.
 
 ### 6. Acceptable Use
 
@@ -99,7 +99,6 @@ These Terms are governed by the laws of the Federal Republic of Nigeria. Any dis
 
 The Portal integrates the following third-party services, each governed by their own terms:
 
-- **Paystack** — payment processing;
 - **Supabase** — cloud database, authentication, and file storage (hosted in the EU);
 - **Resend** — transactional email delivery; and
 - **Vercel** — web hosting and content delivery.

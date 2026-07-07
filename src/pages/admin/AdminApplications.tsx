@@ -10,6 +10,17 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { logAudit } from "@/lib/auditLog";
 
+// The generated Supabase types don't yet include the payment receipt columns.
+const db = supabase as any;
+
+const PAYMENT_BADGES: Record<string, { label: string; className: string }> = {
+  uploaded:     { label: "Receipt Uploaded", className: "bg-blue-100 text-blue-700 border-blue-200" },
+  verified:     { label: "Payment Verified", className: "bg-green-100 text-green-700 border-green-200" },
+  rejected:     { label: "Receipt Rejected", className: "bg-red-100 text-red-700 border-red-200" },
+  not_required: { label: "No Fee",           className: "bg-muted text-muted-foreground border-border" },
+  unpaid:       { label: "Unpaid",           className: "bg-yellow-100 text-yellow-800 border-yellow-200" },
+};
+
 const SERVICE_LABELS: Record<string, string> = {
   nba_diary:                 "NBA Diary",
   nba_id_card:               "NBA ID Card",
@@ -73,6 +84,10 @@ const AdminApplications = () => {
   };
 
   const approve = async (app: any) => {
+    if (app.payment_status === "uploaded" || app.payment_status === "rejected" || app.payment_status === "unpaid") {
+      const ok = window.confirm("This application's payment has not been verified yet. Approve anyway?");
+      if (!ok) return;
+    }
     setUpdating({ id: app.id, action: "approved" });
     const { error } = await supabase.from("service_applications").update({ status: "approved" }).eq("id", app.id);
     if (error) { toast({ title: "Error", description: error.message, variant: "destructive" }); setUpdating(null); return; }
@@ -120,6 +135,78 @@ const AdminApplications = () => {
       return;
     }
     window.open(data.signedUrl, "_blank", "noopener");
+  };
+
+  // ── Payment receipt review ────────────────────────────────────────────────
+  const [payReviewing, setPayReviewing] = useState<string | null>(null);
+  const [payRejectTarget, setPayRejectTarget] = useState<any | null>(null);
+  const [payRejectReason, setPayRejectReason] = useState("");
+  const [payRejecting, setPayRejecting] = useState(false);
+
+  const verifyPayment = async (app: any) => {
+    if (!user) return;
+    setPayReviewing(app.id);
+    // The BIN (branch receipt number) is issued by a DB trigger on this
+    // transition — read the row back to get it.
+    const { data: updated, error } = await db
+      .from("service_applications")
+      .update({ payment_status: "verified", payment_reviewed_by: user.id, payment_reviewed_at: new Date().toISOString() })
+      .eq("id", app.id)
+      .select("bin")
+      .single();
+    if (error) {
+      toast({ title: "Failed to verify payment", description: error.message, variant: "destructive" });
+      setPayReviewing(null);
+      return;
+    }
+
+    const serviceLabel = SERVICE_LABELS[app.service_type] || app.service_type;
+    await supabase.from("notifications").insert({
+      user_id: app.user_id,
+      title: `Payment Verified: ${serviceLabel}`,
+      message: `Your payment for ${serviceLabel} has been verified by the secretariat.${updated?.bin ? ` Your branch receipt number is ${updated.bin}.` : ""}`,
+      type: "application_update",
+    });
+    logAudit(user.id, "service_payment_verified", "service_application", app.id, { service_type: app.service_type, bin: updated?.bin ?? null });
+
+    setApplications((prev) => prev.map((a) => a.id === app.id
+      ? { ...a, payment_status: "verified", bin: updated?.bin ?? a.bin, payment_rejection_reason: null }
+      : a));
+    setPayReviewing(null);
+    toast({ title: "Payment verified", description: updated?.bin ? `Receipt number ${updated.bin} issued.` : "The member has been notified." });
+  };
+
+  const confirmRejectPayment = async () => {
+    if (!payRejectTarget || !user) return;
+    const app = payRejectTarget;
+    const reason = payRejectReason.trim();
+    setPayRejecting(true);
+    const { error } = await db
+      .from("service_applications")
+      .update({ payment_status: "rejected", payment_rejection_reason: reason || null, payment_reviewed_by: user.id, payment_reviewed_at: new Date().toISOString() })
+      .eq("id", app.id);
+    if (error) {
+      toast({ title: "Failed to reject payment", description: error.message, variant: "destructive" });
+      setPayRejecting(false);
+      return;
+    }
+
+    const serviceLabel = SERVICE_LABELS[app.service_type] || app.service_type;
+    await supabase.from("notifications").insert({
+      user_id: app.user_id,
+      title: `Payment Receipt Not Accepted: ${serviceLabel}`,
+      message: `The payment receipt for your ${serviceLabel} application was not accepted.${reason ? ` Reason: ${reason}.` : ""} Please upload a corrected receipt from My Applications.`,
+      type: "application_update",
+    });
+    logAudit(user.id, "service_payment_rejected", "service_application", app.id, { service_type: app.service_type, reason: reason || null });
+
+    setApplications((prev) => prev.map((a) => a.id === app.id
+      ? { ...a, payment_status: "rejected", payment_rejection_reason: reason || null }
+      : a));
+    setPayRejecting(false);
+    setPayRejectTarget(null);
+    setPayRejectReason("");
+    toast({ title: "Payment receipt rejected", description: "The member has been notified." });
   };
 
   const confirmReject = async () => {
@@ -255,15 +342,15 @@ const AdminApplications = () => {
                           }`}>
                             {app.status}
                           </span>
-                          {app.payment_status === "paid" ? (
-                            <Badge className="bg-green-100 text-green-700 border-green-200 gap-1 text-[10px]">
-                              <BadgeCheck className="h-3 w-3" /> Paid
-                            </Badge>
-                          ) : (
-                            <Badge variant="outline" className="text-muted-foreground gap-1 text-[10px]">
-                              <Clock className="h-3 w-3" /> Unpaid
-                            </Badge>
-                          )}
+                          {(() => {
+                            const pb = PAYMENT_BADGES[app.payment_status] || PAYMENT_BADGES.unpaid;
+                            const PIcon = app.payment_status === "verified" ? BadgeCheck : Clock;
+                            return (
+                              <Badge variant="outline" className={`gap-1 text-[10px] ${pb.className}`}>
+                                <PIcon className="h-3 w-3" /> {pb.label}
+                              </Badge>
+                            );
+                          })()}
                         </div>
                         <p className="text-xs text-muted-foreground mt-0.5">
                           {profile
@@ -281,19 +368,74 @@ const AdminApplications = () => {
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
                           {profile?.email && <div><p className="text-xs text-muted-foreground">Email</p><p className="font-medium">{profile.email}</p></div>}
                           {profile?.phone && <div><p className="text-xs text-muted-foreground">Phone</p><p className="font-medium">{profile.phone}</p></div>}
-                          <div>
-                            <p className="text-xs text-muted-foreground">Payment</p>
-                            <p className={`font-medium text-sm capitalize ${app.payment_status === "paid" ? "text-green-700" : "text-muted-foreground"}`}>
-                              {app.payment_status || "unpaid"}
-                            </p>
-                          </div>
-                          {app.payment_reference && (
+                          {app.payment_amount != null && (
                             <div>
-                              <p className="text-xs text-muted-foreground">Payment Ref</p>
-                              <p className="font-mono text-xs text-foreground truncate">{app.payment_reference}</p>
+                              <p className="text-xs text-muted-foreground">Fee</p>
+                              <p className="font-medium">₦{Number(app.payment_amount).toLocaleString("en-NG")}</p>
+                            </div>
+                          )}
+                          {app.bin && (
+                            <div>
+                              <p className="text-xs text-muted-foreground">Receipt No</p>
+                              <p className="font-mono text-xs text-foreground truncate">{app.bin}</p>
                             </div>
                           )}
                         </div>
+
+                        {/* Payment receipt review */}
+                        {app.payment_status !== "not_required" && (
+                          <div className={`rounded-md border px-4 py-3 ${
+                            app.payment_status === "verified" ? "bg-green-50/60 border-green-100" :
+                            app.payment_status === "rejected" ? "bg-red-50/60 border-red-100" :
+                            "bg-blue-50/60 border-blue-100"
+                          }`}>
+                            <div className="flex items-center justify-between gap-3 flex-wrap">
+                              <div>
+                                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Bank Transfer Payment</p>
+                                <p className="text-sm text-foreground mt-0.5">
+                                  {app.payment_status === "verified"
+                                    ? <>Verified{app.bin && <> — receipt no <span className="font-mono font-semibold">{app.bin}</span></>}</>
+                                    : app.payment_status === "rejected"
+                                    ? <>Receipt rejected{app.payment_rejection_reason && <> — {app.payment_rejection_reason}</>}</>
+                                    : app.payment_status === "uploaded"
+                                    ? "Transfer receipt awaiting verification."
+                                    : "No receipt uploaded yet."}
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                {app.payment_receipt_url && (
+                                  <Button size="sm" variant="outline" className="h-8 text-xs gap-1" onClick={() => openFile(app.payment_receipt_url)}>
+                                    <FileText className="h-3.5 w-3.5" /> View Receipt
+                                  </Button>
+                                )}
+                                {app.payment_status === "uploaded" && (
+                                  <>
+                                    <Button
+                                      size="sm"
+                                      className="h-8 text-xs gap-1 bg-green-600 hover:bg-green-700 text-white"
+                                      disabled={payReviewing === app.id}
+                                      onClick={() => verifyPayment(app)}
+                                    >
+                                      {payReviewing === app.id
+                                        ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                        : <CheckCircle className="h-3.5 w-3.5" />}
+                                      Verify Payment
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="destructive"
+                                      className="h-8 text-xs gap-1"
+                                      disabled={payReviewing === app.id}
+                                      onClick={() => { setPayRejectTarget(app); setPayRejectReason(""); }}
+                                    >
+                                      <XCircle className="h-3.5 w-3.5" /> Reject Receipt
+                                    </Button>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        )}
 
                         {Object.keys(formData).length > 0 && (
                           <div>
@@ -393,6 +535,37 @@ const AdminApplications = () => {
             <Button variant="outline" onClick={() => setRejectTarget(null)} disabled={rejecting}>Cancel</Button>
             <Button variant="destructive" onClick={confirmReject} disabled={rejecting}>
               {rejecting ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <XCircle className="h-4 w-4 mr-1" />}
+              Confirm Rejection
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Payment receipt rejection dialog */}
+      <Dialog open={!!payRejectTarget} onOpenChange={(open) => { if (!open) setPayRejectTarget(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Reject Payment Receipt</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <p className="text-sm text-muted-foreground">
+              Rejecting the transfer receipt for{" "}
+              <span className="font-semibold text-foreground">{SERVICE_LABELS[payRejectTarget?.service_type] || payRejectTarget?.service_type}</span>.
+              The member will be asked to upload a corrected receipt; no receipt number is issued.
+            </p>
+            <textarea
+              value={payRejectReason}
+              onChange={(e) => setPayRejectReason(e.target.value)}
+              rows={3}
+              placeholder="e.g. The transfer amount does not match the service fee."
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none"
+            />
+            <p className="text-xs text-muted-foreground">Optional, but strongly recommended.</p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPayRejectTarget(null)} disabled={payRejecting}>Cancel</Button>
+            <Button variant="destructive" onClick={confirmRejectPayment} disabled={payRejecting}>
+              {payRejecting ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <XCircle className="h-4 w-4 mr-1" />}
               Confirm Rejection
             </Button>
           </DialogFooter>

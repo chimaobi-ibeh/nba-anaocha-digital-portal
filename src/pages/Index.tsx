@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
-import { ArrowRight, Monitor, Users, GraduationCap, Gavel, ShieldCheck, BookOpen, Heart, Megaphone, Trophy, Building2, UserRound } from "lucide-react";
+import { ArrowRight, Monitor, Users, GraduationCap, Gavel, ShieldCheck, BookOpen, Heart, Megaphone, Trophy, Building2, UserRound, Library, Lightbulb, Handshake } from "lucide-react";
 import Footer from "@/components/Footer";
 import Header from "@/components/Header";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -20,7 +20,7 @@ interface Person {
   id: string;
   name: string;
   position: string;
-  category: "executive" | "committee" | "patron";
+  category: "executive" | "committee" | "patron" | "leader_of_bar";
   committee: string | null;
   photo_url: string | null;
 }
@@ -46,6 +46,9 @@ const committees = [
   { icon: <Megaphone className="h-5 w-5" />, name: "Publicity", desc: "Managing the branch's public image and communication strategy." },
   { icon: <Trophy className="h-5 w-5" />, name: "Sports", desc: "Fostering camaraderie and fitness through sporting activities among members." },
   { icon: <Building2 className="h-5 w-5" />, name: "Bar Centre", desc: "Overseeing the maintenance and development of the NBA Anaocha Bar Centre." },
+  { icon: <Library className="h-5 w-5" />, name: "Continuing Legal Education", desc: "Organizing CLE programmes to keep members current in law and practice." },
+  { icon: <Lightbulb className="h-5 w-5" />, name: "Advisory", desc: "Providing counsel and strategic guidance to the branch leadership." },
+  { icon: <Handshake className="h-5 w-5" />, name: "Bar/Bench Relationship", desc: "Fostering cordial relations between the Bar and the Bench in our jurisdiction." },
 ];
 
 const newsArticles = [
@@ -89,6 +92,7 @@ const Index = () => {
   }, []);
 
   const patron = people.find((p) => p.category === "patron");
+  const leaderOfBar = people.find((p) => p.category === "leader_of_bar");
   const executives = people.filter((p) => p.category === "executive");
   const membersFor = (committee: string) =>
     people.filter((p) => p.category === "committee" && p.committee === committee);
@@ -187,21 +191,39 @@ const Index = () => {
         </div>
       </section>
 
-      {/* Grand Patron / Founder */}
-      {patron && (
+      {/* Grand Patron / Founder & Leader of the Bar */}
+      {(patron || leaderOfBar) && (
         <section className="py-12 md:py-16 bg-muted/30 border-y border-border">
           <div className="container">
-            <div className="flex flex-col md:flex-row items-center gap-8 md:gap-12 max-w-4xl mx-auto text-center md:text-left">
-              <div className="group shrink-0">
-                <PersonAvatar person={patron} size="h-48 w-48 md:h-56 md:w-56" />
-              </div>
-              <div>
-                <p className="text-xs font-bold tracking-[0.25em] uppercase text-accent mb-2">Grand Patron &amp; Founder</p>
-                <h2 className="font-heading text-2xl md:text-3xl font-bold text-foreground">{patron.name}</h2>
-                <p className="text-sm text-muted-foreground mt-4 leading-relaxed max-w-xl">
-                  The visionary whose dedication founded the NBA Anaocha Branch and whose legacy continues to guide the Family Bar.
-                </p>
-              </div>
+            <div className={`grid grid-cols-1 gap-12 max-w-5xl mx-auto ${patron && leaderOfBar ? "md:grid-cols-2 md:gap-8" : ""}`}>
+              {patron && (
+                <div className="flex flex-col items-center gap-6 text-center">
+                  <div className="group shrink-0">
+                    <PersonAvatar person={patron} size="h-48 w-48 md:h-56 md:w-56" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold tracking-[0.25em] uppercase text-accent mb-2">Grand Patron &amp; Founder</p>
+                    <h2 className="font-heading text-2xl md:text-3xl font-bold text-foreground">{patron.name}</h2>
+                    <p className="text-sm text-muted-foreground mt-4 leading-relaxed max-w-md mx-auto">
+                      The visionary whose dedication founded the NBA Anaocha Branch and whose legacy continues to guide the Family Bar.
+                    </p>
+                  </div>
+                </div>
+              )}
+              {leaderOfBar && (
+                <div className="flex flex-col items-center gap-6 text-center">
+                  <div className="group shrink-0">
+                    <PersonAvatar person={leaderOfBar} size="h-48 w-48 md:h-56 md:w-56" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold tracking-[0.25em] uppercase text-accent mb-2">Leader of the Bar &middot; 1st SAN of the Branch</p>
+                    <h2 className="font-heading text-2xl md:text-3xl font-bold text-foreground">{leaderOfBar.name}</h2>
+                    <p className="text-sm text-muted-foreground mt-4 leading-relaxed max-w-md mx-auto">
+                      The first Senior Advocate of Nigeria of the branch, leading the Bar in Anaocha with distinction at the Inner Bar.
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </section>

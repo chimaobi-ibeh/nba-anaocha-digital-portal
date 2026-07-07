@@ -7,7 +7,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { SERVICE_LABELS } from "@/lib/constants";
 
 const naira = (n: number) => `₦${(n || 0).toLocaleString("en-NG")}`;
-const PAID = ["paid", "uploaded"];
+
+// The generated Supabase types don't yet include the payment receipt columns.
+const db = supabase as any;
 
 const StatCard = ({ icon, tone, label, value }: { icon: React.ReactNode; tone: string; label: string; value: React.ReactNode }) => (
   <Card className="shadow-card">
@@ -49,22 +51,19 @@ const AdminReporting = () => {
   const [duesItems, setDuesItems] = useState<any[]>([]);
   const [duesPayments, setDuesPayments] = useState<any[]>([]);
   const [apps, setApps] = useState<any[]>([]);
-  const [payments, setPayments] = useState<any[]>([]);
 
   useEffect(() => {
     (async () => {
-      const [p, di, dp, a, pay] = await Promise.all([
+      const [p, di, dp, a] = await Promise.all([
         supabase.from("profiles").select("status, rank, lbian, is_admin"),
         supabase.from("dues_items").select("id, title, year, is_active"),
-        supabase.from("dues_payments").select("dues_item_id, amount, status"),
-        supabase.from("service_applications").select("id, service_type, status, payment_status, created_at"),
-        supabase.from("payments").select("entity_type, entity_id, amount, status"),
+        db.from("dues_payments").select("dues_item_id, amount, status"),
+        db.from("service_applications").select("id, service_type, status, payment_status, payment_amount, created_at"),
       ]);
       setProfiles(p.data || []);
       setDuesItems(di.data || []);
       setDuesPayments(dp.data || []);
       setApps(a.data || []);
-      setPayments(pay.data || []);
       setLoading(false);
     })();
   }, []);
@@ -79,20 +78,22 @@ const AdminReporting = () => {
   const bencher = members.filter((m) => m.rank === "bencher").length;
   const lbiansIssued = members.filter((m) => m.lbian).length;
 
-  // ── Revenue (from the canonical payments ledger) ─────────────────────────
-  const successPayments = payments.filter((p) => p.status === "success");
+  // ── Revenue (secretariat-verified bank transfers only) ───────────────────
+  const verifiedDues = duesPayments.filter((p) => p.status === "verified");
   const collectedForDuesItem = (itemId: string) =>
-    successPayments
-      .filter((p) => p.entity_type === "dues" && p.entity_id === itemId)
+    verifiedDues
+      .filter((p) => p.dues_item_id === itemId)
       .reduce((s, p) => s + Number(p.amount || 0), 0);
 
-  const totalDuesCollected = successPayments.filter((p) => p.entity_type === "dues").reduce((s, p) => s + Number(p.amount || 0), 0);
-  const serviceRevenue = successPayments.filter((p) => p.entity_type === "service_application").reduce((s, p) => s + Number(p.amount || 0), 0);
+  const totalDuesCollected = verifiedDues.reduce((s, p) => s + Number(p.amount || 0), 0);
+  const serviceRevenue = apps
+    .filter((a) => a.payment_status === "verified")
+    .reduce((s, a) => s + Number(a.payment_amount || 0), 0);
   const totalRevenue = totalDuesCollected + serviceRevenue;
 
-  // ── Dues compliance (paid counts from dues_payments; money from payments) ──
+  // ── Dues compliance ───────────────────────────────────────────────────────
   const duesRows = duesItems.filter((d) => d.is_active).map((d) => {
-    const paid = duesPayments.filter((p) => p.dues_item_id === d.id && PAID.includes(p.status)).length;
+    const paid = duesPayments.filter((p) => p.dues_item_id === d.id && p.status === "verified").length;
     return { id: d.id, title: d.title, year: d.year, paid, outstanding: Math.max(active - paid, 0), collected: collectedForDuesItem(d.id) };
   });
 
@@ -174,7 +175,7 @@ const AdminReporting = () => {
             <StatCard icon={<Landmark className="h-5 w-5 text-green-600" />} tone="bg-green-100"  label="Dues Collected"   value={naira(totalDuesCollected)} />
             <StatCard icon={<FileText className="h-5 w-5 text-blue-600" />}  tone="bg-blue-100"   label="Service Revenue"  value={naira(serviceRevenue)} />
           </div>
-          <p className="text-xs text-muted-foreground mt-2">Totals are summed from confirmed Paystack payments. Dues paid by uploaded receipt count toward compliance but not toward collected totals.</p>
+          <p className="text-xs text-muted-foreground mt-2">Totals are summed from bank transfers verified by the secretariat. Receipts still awaiting review are not counted.</p>
         </div>
 
         {/* Dues compliance */}

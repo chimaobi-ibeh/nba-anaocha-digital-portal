@@ -8,7 +8,6 @@ initMonitoring();
 const REQUIRED_ENV_VARS = [
   'VITE_SUPABASE_URL',
   'VITE_SUPABASE_PUBLISHABLE_KEY',
-  'VITE_PAYSTACK_PUBLIC_KEY',
 ] as const;
 
 const missing = REQUIRED_ENV_VARS.filter(

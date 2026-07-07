@@ -1,27 +1,18 @@
 import { useState, useEffect, useRef } from "react";
 import { CheckCircle, Clock, Upload, CreditCard, AlertCircle, FileText, X } from "lucide-react";
 import DashboardLayout from "@/components/DashboardLayout";
+import BankTransferDetails from "@/components/BankTransferDetails";
 import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { anaochaSidebarItems } from "@/lib/sidebarItems";
 import { DUES_CATEGORY_LABELS, getDueAmount } from "@/lib/constants";
+import { Button } from "@/components/ui/button";
 
-declare global { interface Window { PaystackPop: any; } }
-
-const loadPaystack = (): Promise<void> =>
-  new Promise((resolve) => {
-    if (window.PaystackPop) { resolve(); return; }
-    const s = document.createElement("script");
-    s.src = "https://js.paystack.co/v1/inline.js";
-    s.onload = () => resolve();
-    document.head.appendChild(s);
-  });
-
-const makeRef = () => `DUES-${Date.now()}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
+// The generated Supabase types don't yet include the `bin` column.
+const db = supabase as any;
 
 type DuesItem = {
   id: string; title: string; description: string | null; category: string;
@@ -34,12 +25,11 @@ type DuesItem = {
 
 type Payment = {
   dues_item_id: string; amount: number | null; status: string;
-  reference: string | null; receipt_url: string | null; paid_at: string | null;
-  rejection_reason: string | null;
+  receipt_url: string | null; paid_at: string | null;
+  rejection_reason: string | null; bin: string | null;
 };
 
 const STATUS_CONFIG = {
-  paid:     { label: "Paid",            icon: CheckCircle, color: "text-green-600", bg: "bg-green-50 border-green-100" },
   verified: { label: "Verified",        icon: CheckCircle, color: "text-green-600", bg: "bg-green-50 border-green-100" },
   uploaded: { label: "Awaiting Review", icon: Clock,       color: "text-blue-600",  bg: "bg-blue-50 border-blue-100"   },
   rejected: { label: "Not Accepted",    icon: X,           color: "text-red-600",   bg: "bg-red-50 border-red-100"     },
@@ -53,7 +43,6 @@ const MyDues = () => {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [profile, setProfile]   = useState<{ year_of_call: string | null; rank: string | null } | null>(null);
   const [loading, setLoading]   = useState(true);
-  const [paying, setPaying]     = useState<string | null>(null); // dues_item_id being paid
   const [uploading, setUploading] = useState<string | null>(null);
   const fileRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
@@ -64,7 +53,7 @@ const MyDues = () => {
     setLoading(true);
     const [itemsRes, paymentsRes, profileRes] = await Promise.all([
       supabase.from("dues_items").select("*").eq("is_active", true).order("year", { ascending: false }).order("created_at"),
-      supabase.from("dues_payments").select("dues_item_id, amount, status, reference, receipt_url, paid_at, rejection_reason").eq("user_id", user.id),
+      db.from("dues_payments").select("dues_item_id, amount, status, receipt_url, paid_at, rejection_reason, bin").eq("user_id", user.id),
       supabase.from("profiles").select("year_of_call, rank").eq("user_id", user.id).maybeSingle(),
     ]);
     setItems((itemsRes.data as DuesItem[]) ?? []);
@@ -74,53 +63,6 @@ const MyDues = () => {
   };
 
   const paymentFor = (itemId: string) => payments.find(p => p.dues_item_id === itemId);
-
-  const handlePay = async (item: DuesItem) => {
-    if (!user) return;
-    const amount = getDueAmount(item, profile?.year_of_call, profile?.rank);
-    if (!amount) {
-      toast({ title: "Amount unavailable", description: "Your year of call is not set. Please update your profile.", variant: "destructive" });
-      return;
-    }
-    await loadPaystack();
-    setPaying(item.id);
-    window.PaystackPop.setup({
-      key:      import.meta.env.VITE_PAYSTACK_PUBLIC_KEY,
-      email:    user.email!,
-      amount:   amount * 100,
-      currency: "NGN",
-      ref:      makeRef(),
-      metadata: {
-        // Lets the server-side webhook record this payment even if the
-        // browser never comes back from the checkout.
-        user_id: user.id,
-        entity_type: "dues",
-        entity_id: item.id,
-        custom_fields: [
-          { display_name: "Due",    variable_name: "dues_title",    value: item.title },
-          { display_name: "Portal", variable_name: "portal",        value: "NBA Anaocha" },
-        ],
-      },
-      callback: (res: any) => {
-        setPaying(null);
-        supabase.functions.invoke("verify-payment", {
-          body: { reference: res.reference, user_id: user.id, entity_type: "dues", entity_id: item.id },
-        }).then(({ data, error }) => {
-          if (error || !data?.success) {
-            toast({
-              title: "Payment successful but verification failed",
-              description: `Reference: ${res.reference}. Share this with the secretariat. ${error?.message || data?.message || ""}`,
-              variant: "destructive",
-            });
-          } else {
-            toast({ title: "Payment confirmed", description: `₦${Number(data.amount).toLocaleString("en-NG")} paid for ${item.title}.` });
-            load();
-          }
-        });
-      },
-      onClose: () => setPaying(null),
-    }).openIframe();
-  };
 
   const handleUpload = async (item: DuesItem, file: File) => {
     if (!user) return;
@@ -133,9 +75,12 @@ const MyDues = () => {
       setUploading(null);
       return;
     }
+    // Priced items record the amount the member owes so the secretariat can
+    // check the transfer against it; upload-only items (BPF etc.) have none.
+    const amount = item.requires_upload ? null : getDueAmount(item, profile?.year_of_call, profile?.rank) || null;
     const { error } = await supabase.from("dues_payments").upsert({
       user_id: user.id, dues_item_id: item.id,
-      receipt_url: path, status: "uploaded",
+      receipt_url: path, status: "uploaded", amount,
       paid_at: new Date().toISOString(),
     }, { onConflict: "user_id,dues_item_id" });
     setUploading(null);
@@ -156,6 +101,14 @@ const MyDues = () => {
     return !p || p.status === "pending" || p.status === "rejected";
   }).length;
 
+  // Bank details are only useful while a payable (non-upload-only) item is
+  // still outstanding or was rejected.
+  const hasPayableOutstanding = items.some(i => {
+    if (i.requires_upload) return false;
+    const p = paymentFor(i.id);
+    return !p || p.status === "pending" || p.status === "rejected";
+  });
+
   return (
     <DashboardLayout title="NBA Anaocha" sidebarItems={anaochaSidebarItems}>
       <div className="space-y-6">
@@ -163,7 +116,7 @@ const MyDues = () => {
           <div>
             <h1 className="font-heading text-2xl md:text-3xl font-bold text-foreground">My Dues</h1>
             <p className="text-muted-foreground mt-1">
-              Track and pay your annual dues and branch levies.
+              Pay by bank transfer, upload your receipt, and track your compliance.
             </p>
           </div>
           {!loading && outstanding > 0 && (
@@ -185,6 +138,8 @@ const MyDues = () => {
             </CardContent>
           </Card>
         )}
+
+        {!loading && hasPayableOutstanding && <BankTransferDetails />}
 
         {loading ? (
           <div className="flex items-center justify-center py-20">
@@ -214,9 +169,8 @@ const MyDues = () => {
                     const cfg       = STATUS_CONFIG[status as keyof typeof STATUS_CONFIG] ?? STATUS_CONFIG.pending;
                     const Icon      = cfg.icon;
                     const amount    = getDueAmount(item, profile?.year_of_call, profile?.rank);
-                    const isPaying  = paying === item.id;
                     const isUploading = uploading === item.id;
-                    const done      = status === "paid" || status === "uploaded" || status === "verified";
+                    const done      = status === "uploaded" || status === "verified";
 
                     return (
                       <Card key={item.id} className={`shadow-card border ${done ? cfg.bg : "border-border"}`}>
@@ -248,10 +202,15 @@ const MyDues = () => {
                                 )}
                                 {payment?.paid_at && status !== "rejected" && (
                                   <span className="text-xs text-muted-foreground">
-                                    {status === "uploaded" ? "Submitted" : status === "verified" ? "Verified" : "Paid"}: {new Date(payment.paid_at).toLocaleDateString("en-NG", { day: "numeric", month: "short", year: "numeric" })}
+                                    {status === "uploaded" ? "Submitted" : "Verified"}: {new Date(payment.paid_at).toLocaleDateString("en-NG", { day: "numeric", month: "short", year: "numeric" })}
                                   </span>
                                 )}
                               </div>
+                              {status === "verified" && payment?.bin && (
+                                <p className="text-xs text-green-700 font-semibold mt-2">
+                                  Receipt No: <span className="font-mono">{payment.bin}</span>
+                                </p>
+                              )}
                               {status === "rejected" && (
                                 <div className="mt-2 bg-red-50 border border-red-100 rounded px-3 py-2">
                                   <p className="text-xs font-semibold text-red-700 mb-0.5">Receipt not accepted{payment?.rejection_reason ? ":" : "."}</p>
@@ -268,67 +227,54 @@ const MyDues = () => {
                               </div>
 
                               {!done && (
-                                item.requires_upload ? (
-                                  <>
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      disabled={isUploading}
-                                      onClick={() => fileRefs.current[item.id]?.click()}
-                                      className="gap-1.5"
-                                    >
-                                      {isUploading
-                                        ? <><span className="h-3.5 w-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />Uploading...</>
-                                        : <><Upload className="h-3.5 w-3.5" />{item.upload_label ?? "Upload Receipt"}</>}
-                                    </Button>
-                                    <input
-                                      ref={el => { fileRefs.current[item.id] = el; }}
-                                      type="file"
-                                      accept="image/*,.pdf"
-                                      className="hidden"
-                                      onChange={e => {
-                                        const f = e.target.files?.[0];
-                                        if (f) handleUpload(item, f);
-                                        e.target.value = "";
-                                      }}
-                                    />
-                                  </>
-                                ) : (
+                                <>
                                   <Button
                                     size="sm"
-                                    disabled={isPaying || amount === 0}
-                                    onClick={() => handlePay(item)}
+                                    variant="outline"
+                                    disabled={isUploading}
+                                    onClick={() => fileRefs.current[item.id]?.click()}
                                     className="gap-1.5"
                                   >
-                                    {isPaying
-                                      ? <><span className="h-3.5 w-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />Processing...</>
-                                      : <><CreditCard className="h-3.5 w-3.5" />Pay Now</>}
+                                    {isUploading
+                                      ? <><span className="h-3.5 w-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />Uploading...</>
+                                      : <><Upload className="h-3.5 w-3.5" />{item.requires_upload ? (item.upload_label ?? "Upload Receipt") : "Upload Payment Receipt"}</>}
                                   </Button>
-                                )
+                                  <input
+                                    ref={el => { fileRefs.current[item.id] = el; }}
+                                    type="file"
+                                    accept="image/*,.pdf"
+                                    className="hidden"
+                                    onChange={e => {
+                                      const f = e.target.files?.[0];
+                                      if (f) handleUpload(item, f);
+                                      e.target.value = "";
+                                    }}
+                                  />
+                                </>
                               )}
 
                               {done && status === "uploaded" && (
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="gap-1.5 text-xs text-muted-foreground"
-                                  onClick={() => fileRefs.current[item.id]?.click()}
-                                >
-                                  <FileText className="h-3.5 w-3.5" />Re-upload
-                                </Button>
-                              )}
-                              {done && status === "uploaded" && (
-                                <input
-                                  ref={el => { fileRefs.current[item.id] = el; }}
-                                  type="file"
-                                  accept="image/*,.pdf"
-                                  className="hidden"
-                                  onChange={e => {
-                                    const f = e.target.files?.[0];
-                                    if (f) handleUpload(item, f);
-                                    e.target.value = "";
-                                  }}
-                                />
+                                <>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="gap-1.5 text-xs text-muted-foreground"
+                                    onClick={() => fileRefs.current[item.id]?.click()}
+                                  >
+                                    <FileText className="h-3.5 w-3.5" />Re-upload
+                                  </Button>
+                                  <input
+                                    ref={el => { fileRefs.current[item.id] = el; }}
+                                    type="file"
+                                    accept="image/*,.pdf"
+                                    className="hidden"
+                                    onChange={e => {
+                                      const f = e.target.files?.[0];
+                                      if (f) handleUpload(item, f);
+                                      e.target.value = "";
+                                    }}
+                                  />
+                                </>
                               )}
                             </div>
                           </div>

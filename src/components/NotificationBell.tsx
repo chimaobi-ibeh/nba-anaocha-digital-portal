@@ -25,7 +25,6 @@ const NotificationBell = ({ viewAllHref }: NotificationBellProps) => {
   const panelRef = useRef<HTMLDivElement>(null);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
-  const [expanded, setExpanded] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -53,11 +52,6 @@ const NotificationBell = ({ viewAllHref }: NotificationBellProps) => {
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
   }, [open]);
-
-  const markAsRead = async (id: string) => {
-    await supabase.from("notifications").update({ read: true }).eq("id", id);
-    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
-  };
 
   const markAllRead = async () => {
     if (!user) return;
@@ -116,54 +110,40 @@ const NotificationBell = ({ viewAllHref }: NotificationBellProps) => {
                 <p className="text-sm text-muted-foreground">You're all caught up.</p>
               </div>
             ) : (
-              notifications.map((n) => {
-                const isExpanded = expanded === n.id;
-                return (
-                  <div
-                    key={n.id}
-                    className={`px-4 py-3 border-b border-border last:border-0 transition-colors ${
-                      !n.read ? "bg-accent/5 border-l-2 border-l-accent" : ""
-                    }`}
-                  >
-                    <div
-                      className="flex items-start gap-2 cursor-pointer hover:opacity-80"
-                      onClick={() => setExpanded(isExpanded ? null : n.id)}
-                    >
-                      <div className="mt-0.5 shrink-0">
-                        {n.read ? (
-                          <CheckCheck className="h-3.5 w-3.5 text-muted-foreground" />
-                        ) : (
-                          <Circle className="h-3.5 w-3.5 fill-accent text-accent" />
-                        )}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium text-card-foreground leading-snug">{n.title}</p>
-                        <p className={`text-xs text-muted-foreground mt-0.5 ${isExpanded ? "" : "line-clamp-2"}`}>
-                          {n.message}
-                        </p>
-                        <p className="text-xs text-muted-foreground/70 mt-1">
-                          {new Date(n.created_at).toLocaleDateString("en-NG", {
-                            day: "numeric",
-                            month: "short",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </p>
-                      </div>
+              notifications.map((n) => (
+                // Opening a notification navigates to its full reading page,
+                // which also marks it as read.
+                <Link
+                  key={n.id}
+                  to={`${viewAllHref}/${n.id}`}
+                  onClick={() => setOpen(false)}
+                  className={`block px-4 py-3 border-b border-border last:border-0 transition-colors hover:bg-muted/50 ${
+                    !n.read ? "bg-accent/5 border-l-2 border-l-accent" : ""
+                  }`}
+                >
+                  <div className="flex items-start gap-2">
+                    <div className="mt-0.5 shrink-0">
+                      {n.read ? (
+                        <CheckCheck className="h-3.5 w-3.5 text-muted-foreground" />
+                      ) : (
+                        <Circle className="h-3.5 w-3.5 fill-accent text-accent" />
+                      )}
                     </div>
-                    {isExpanded && !n.read && (
-                      <div className="mt-2 pl-5">
-                        <button
-                          onClick={() => markAsRead(n.id)}
-                          className="text-xs text-primary hover:underline flex items-center gap-1"
-                        >
-                          <CheckCheck className="h-3 w-3" /> Mark as read
-                        </button>
-                      </div>
-                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-card-foreground leading-snug">{n.title}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{n.message}</p>
+                      <p className="text-xs text-muted-foreground/70 mt-1">
+                        {new Date(n.created_at).toLocaleDateString("en-NG", {
+                          day: "numeric",
+                          month: "short",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </p>
+                    </div>
                   </div>
-                );
-              })
+                </Link>
+              ))
             )}
           </div>
 

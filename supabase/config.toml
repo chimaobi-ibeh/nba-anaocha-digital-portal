@@ -1,10 +1,5 @@
 project_id = "pwxahgqhtyciemqozgml"
 
-# Paystack calls this endpoint directly (no Supabase JWT); authenticity is
-# enforced by the x-paystack-signature HMAC check inside the function.
-[functions.paystack-webhook]
-verify_jwt = false
-
 # Invoked by pg_cron (no JWT); callers authenticate with x-cron-secret.
 [functions.dues-reminders]
 verify_jwt = false

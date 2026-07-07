@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { CheckCheck, Circle, Bell } from "lucide-react";
+import { Link } from "react-router-dom";
+import { CheckCheck, Circle, Bell, ChevronRight } from "lucide-react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -26,12 +27,6 @@ const Notifications = () => {
         setLoading(false);
       });
   }, [user]);
-
-  const markAsRead = async (id: string) => {
-    const { error } = await supabase.from("notifications").update({ read: true }).eq("id", id);
-    if (error) return;
-    setNotifications((prev) => prev.map((n) => n.id === id ? { ...n, read: true } : n));
-  };
 
   const markAllRead = async () => {
     if (!user) return;
@@ -78,28 +73,27 @@ const Notifications = () => {
         ) : (
           <div className="space-y-3">
             {notifications.map((n) => (
-              <Card
-                key={n.id}
-                className={`shadow-card transition-colors cursor-pointer ${!n.read ? 'border-l-4 border-l-accent bg-accent/5' : ''}`}
-                onClick={() => !n.read && markAsRead(n.id)}
-              >
-                <CardContent className="p-4 flex items-start gap-3">
-                  <div className="mt-1">
-                    {n.read ? (
-                      <CheckCheck className="h-4 w-4 text-muted-foreground" />
-                    ) : (
-                      <Circle className="h-4 w-4 fill-accent text-accent" />
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h4 className="text-sm font-semibold text-card-foreground">{n.title}</h4>
-                    <p className="text-sm text-muted-foreground mt-0.5">{n.message}</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {new Date(n.created_at).toLocaleDateString("en-NG", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
+              <Link key={n.id} to={`/anaocha/notifications/${n.id}`} className="block">
+                <Card className={`shadow-card transition-all hover:shadow-lg hover:-translate-y-0.5 ${!n.read ? 'border-l-4 border-l-accent bg-accent/5' : ''}`}>
+                  <CardContent className="p-4 flex items-start gap-3">
+                    <div className="mt-1">
+                      {n.read ? (
+                        <CheckCheck className="h-4 w-4 text-muted-foreground" />
+                      ) : (
+                        <Circle className="h-4 w-4 fill-accent text-accent" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className={`text-sm font-semibold ${!n.read ? 'text-foreground' : 'text-card-foreground'}`}>{n.title}</h4>
+                      <p className="text-sm text-muted-foreground mt-0.5 line-clamp-2">{n.message}</p>
+                      <p className="text-xs text-muted-foreground mt-1.5">
+                        {new Date(n.created_at).toLocaleDateString("en-NG", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                      </p>
+                    </div>
+                    <ChevronRight className="h-4 w-4 text-muted-foreground mt-1 shrink-0" />
+                  </CardContent>
+                </Card>
+              </Link>
             ))}
           </div>
         )}

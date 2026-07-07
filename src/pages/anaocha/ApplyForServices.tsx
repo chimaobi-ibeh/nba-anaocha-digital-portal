@@ -10,20 +10,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { anaochaSidebarItems } from "@/lib/sidebarItems";
 import { SERVICE_FEES } from "@/lib/constants";
+import BankTransferDetails from "@/components/BankTransferDetails";
 
-declare global { interface Window { PaystackPop: any; } }
-
-const loadPaystack = (): Promise<void> =>
-  new Promise((resolve) => {
-    if (window.PaystackPop) { resolve(); return; }
-    const s = document.createElement("script");
-    s.src = "https://js.paystack.co/v1/inline.js";
-    s.onload = () => resolve();
-    document.head.appendChild(s);
-  });
-
-const makeRef = () =>
-  `ANAOCHA-${Date.now()}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
+// The generated Supabase types don't yet include the payment receipt columns.
+const db = supabase as any;
 
 interface ServiceConfig {
   title: string;
@@ -34,7 +24,7 @@ interface ServiceConfig {
   fileFields: { key: string; label: string; accept?: string }[];
   action: string;
   serviceType: string;
-  /** When true the application is submitted without a Paystack payment. */
+  /** When true the application is submitted without any payment. */
   free?: boolean;
 }
 
@@ -95,9 +85,9 @@ const ApplyForServices = () => {
   const [openService, setOpenService] = useState<ServiceConfig | null>(null);
   const [formData, setFormData]       = useState<Record<string, string>>({});
   const [files, setFiles]             = useState<Record<string, File>>({});
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [submitting, setSubmitting]   = useState(false);
   const [submitted, setSubmitted]     = useState(false);
-  const [paying, setPaying]           = useState(false);
   const [lbian, setLbian]             = useState<string | null>(null);
   const fileRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
@@ -111,6 +101,7 @@ const ApplyForServices = () => {
     setOpenService(service);
     setFormData({});
     setFiles({});
+    setReceiptFile(null);
     setSubmitted(false);
     setSubmitting(false);
   };
@@ -129,10 +120,14 @@ const ApplyForServices = () => {
         return false;
       }
     }
+    if (!openService.free && !receiptFile) {
+      toast({ title: "Payment receipt required", description: "Please upload your bank transfer receipt.", variant: "destructive" });
+      return false;
+    }
     return true;
   };
 
-  const doSubmit = async (reference: string | null) => {
+  const doSubmit = async () => {
     if (!user || !openService) return;
     setSubmitting(true);
 
@@ -150,39 +145,38 @@ const ApplyForServices = () => {
       fileUrls.push(path);
     }
 
-    // 2. Insert service application
-    const { data: appData, error: appErr } = await supabase
+    // 2. Upload the bank transfer receipt (paid services)
+    let receiptPath: string | null = null;
+    if (!openService.free && receiptFile) {
+      const ext = receiptFile.name.split(".").pop();
+      receiptPath = `${user.id}/${openService.serviceType}/payment_receipt.${ext}`;
+      const { error } = await supabase.storage.from("uploads").upload(receiptPath, receiptFile, { upsert: true });
+      if (error) {
+        toast({ title: "Receipt upload failed", description: error.message, variant: "destructive" });
+        setSubmitting(false);
+        return;
+      }
+    }
+
+    // 3. Insert service application; the secretariat verifies the transfer
+    //    and the branch receipt number (BIN) is issued on approval.
+    const fee = SERVICE_FEES[openService.serviceType] ?? 0;
+    const { error: appErr } = await db
       .from("service_applications")
       .insert({
-        user_id:           user.id,
-        service_type:      openService.serviceType,
-        form_data:         (openService.serviceType === "nba_vehicle_plate" ? { ...formData, lbian } : formData) as any,
-        file_urls:         fileUrls,
-        payment_reference: reference,
-        payment_status:    reference ? "paid" : "not_required",
-      })
-      .select("id")
-      .single();
+        user_id:             user.id,
+        service_type:        openService.serviceType,
+        form_data:           (openService.serviceType === "nba_vehicle_plate" ? { ...formData, lbian } : formData) as any,
+        file_urls:           fileUrls,
+        payment_receipt_url: receiptPath,
+        payment_amount:      openService.free ? null : fee,
+        payment_status:      openService.free ? "not_required" : "uploaded",
+      });
 
     if (appErr) {
       toast({ title: "Submission failed", description: appErr.message, variant: "destructive" });
       setSubmitting(false);
       return;
-    }
-
-    // 3. Verify payment via Edge Function (writes to payments table), paid services only
-    if (reference) {
-      try {
-        await supabase.functions.invoke("verify-payment", {
-          body: { reference, user_id: user.id, entity_type: "service_application", entity_id: appData.id },
-        });
-      } catch {
-        // Non-fatal: application is submitted; admin can reconcile via Paystack reference
-        toast({
-          title: "Payment recorded but verification pending",
-          description: `Your application was submitted. Keep your reference: ${reference}. Contact the secretariat if payment is not reflected.`,
-        });
-      }
     }
 
     // 4. Notify admins
@@ -208,45 +202,9 @@ const ApplyForServices = () => {
     setSubmitted(true);
   };
 
-  const handleFreeSubmit = async () => {
+  const handleSubmit = async () => {
     if (!validate()) return;
-    await doSubmit(null);
-  };
-
-  const handlePay = async () => {
-    if (!validate() || !user || !openService) return;
-    const fee = SERVICE_FEES[openService.serviceType] ?? 0;
-    await loadPaystack();
-
-    // Close the form dialog first so its overlay doesn't block the Paystack popup
-    setPaying(true);
-
-    window.PaystackPop.setup({
-      key:      import.meta.env.VITE_PAYSTACK_PUBLIC_KEY,
-      email:    user.email!,
-      amount:   fee * 100,
-      currency: "NGN",
-      ref:      makeRef(),
-      metadata: {
-        // The application row is only created after payment, so the webhook
-        // can't stamp it — but with these it can still bank the money record.
-        user_id: user.id,
-        entity_type: "service_application",
-        custom_fields: [
-          { display_name: "Service", variable_name: "service_type", value: openService.serviceType },
-          { display_name: "Portal",  variable_name: "portal",       value: "NBA Anaocha" },
-        ],
-      },
-      callback: (res: any) => {
-        setPaying(false);
-        doSubmit(res.reference);
-      },
-      onClose: () => {
-        // Payment cancelled: reopen the form with data still intact
-        setPaying(false);
-        toast({ title: "Payment not completed", description: "Your application was not submitted. You can try again at any time.", variant: "destructive" });
-      },
-    }).openIframe();
+    await doSubmit();
   };
 
   return (
@@ -255,7 +213,7 @@ const ApplyForServices = () => {
         <div>
           <h1 className="font-heading text-2xl md:text-3xl font-bold text-foreground">Apply for Services</h1>
           <p className="text-muted-foreground mt-1">
-            Select a service below. Where a fee applies, payment is processed securely via Paystack before your application is submitted.
+            Select a service below. Where a fee applies, pay by bank transfer to the branch account and upload your receipt with the application.
           </p>
         </div>
 
@@ -305,7 +263,7 @@ const ApplyForServices = () => {
       </div>
 
       {/* Application + Payment Modal */}
-      <Dialog open={!!openService && !paying} onOpenChange={(open) => !open && !submitting && !paying && setOpenService(null)}>
+      <Dialog open={!!openService} onOpenChange={(open) => !open && !submitting && setOpenService(null)}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           {submitted ? (
             <div className="py-8 text-center space-y-4">
@@ -316,7 +274,8 @@ const ApplyForServices = () => {
                 <h3 className="font-heading text-xl font-semibold text-foreground">Application Submitted</h3>
                 <p className="text-sm text-muted-foreground mt-1">
                   Your <span className="font-medium text-foreground">{openService?.title}</span> application
-                  has been received{openService?.free ? "" : " and payment confirmed"}. The secretariat will process it shortly.
+                  has been received{openService?.free ? "" : ", and your payment receipt is awaiting verification by the secretariat"}.
+                  You'll be notified once it is processed.
                 </p>
               </div>
               <Button onClick={() => setOpenService(null)}>Done</Button>
@@ -426,36 +385,68 @@ const ApplyForServices = () => {
                     </div>
                   )}
 
-                  {/* Payment / submission info */}
-                  <div className="bg-muted/40 border border-border rounded-md px-4 py-3 flex items-start gap-3">
-                    <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0 mt-0.5" />
-                    <p className="text-xs text-muted-foreground">
-                      {openService.free ? (
-                        <>No payment is required for this service. Your application is submitted to the secretariat as soon as you click below.</>
-                      ) : (
-                        <>
-                          A payment of{" "}
-                          <span className="font-semibold text-foreground">
-                            ₦{(SERVICE_FEES[openService.serviceType] ?? 0).toLocaleString("en-NG")}
-                          </span>{" "}
-                          will be collected securely via Paystack. Your application is only submitted after payment is confirmed.
-                        </>
-                      )}
-                    </p>
-                  </div>
+                  {/* Payment: bank transfer + receipt upload */}
+                  {openService.free ? (
+                    <div className="bg-muted/40 border border-border rounded-md px-4 py-3 flex items-start gap-3">
+                      <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0 mt-0.5" />
+                      <p className="text-xs text-muted-foreground">
+                        No payment is required for this service. Your application is submitted to the secretariat as soon as you click below.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <BankTransferDetails amountNaira={SERVICE_FEES[openService.serviceType] ?? 0} />
+                      <div>
+                        <label className="text-sm font-medium text-foreground">
+                          Bank Transfer Receipt <span className="text-destructive">*</span>
+                        </label>
+                        <div className="mt-1.5">
+                          {receiptFile ? (
+                            <div className="flex items-center gap-2 text-sm bg-muted/60 border border-border px-3 py-2.5 rounded-md">
+                              <FileText className="h-4 w-4 text-accent shrink-0" />
+                              <span className="truncate flex-1">{receiptFile.name}</span>
+                              <button
+                                onClick={() => setReceiptFile(null)}
+                                className="text-muted-foreground hover:text-destructive"
+                              >
+                                <X className="h-4 w-4" />
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => fileRefs.current["payment_receipt"]?.click()}
+                              className="w-full flex flex-col items-center gap-1.5 border-2 border-dashed border-input rounded-md px-3 py-5 text-sm text-muted-foreground hover:border-primary hover:text-primary hover:bg-primary/5 transition-all"
+                            >
+                              <Upload className="h-5 w-5" />
+                              <span>Upload your transfer receipt</span>
+                              <span className="text-xs opacity-60">PDF, JPG, PNG accepted</span>
+                            </button>
+                          )}
+                          <input
+                            ref={(el) => { fileRefs.current["payment_receipt"] = el; }}
+                            type="file"
+                            accept="image/*,.pdf"
+                            onChange={(e) => {
+                              const f = e.target.files?.[0];
+                              if (f) setReceiptFile(f);
+                              e.target.value = "";
+                            }}
+                            className="hidden"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   <Button
-                    onClick={openService.free ? handleFreeSubmit : handlePay}
+                    onClick={handleSubmit}
                     disabled={submitting}
                     className="w-full gap-2"
                   >
-                    {submitting ? (
-                      <><Loader2 className="h-4 w-4 animate-spin" />Processing...</>
-                    ) : openService.free ? (
-                      <>Submit Application</>
-                    ) : (
-                      <>Pay ₦{(SERVICE_FEES[openService.serviceType] ?? 0).toLocaleString("en-NG")} &amp; Submit</>
-                    )}
+                    {submitting
+                      ? <><Loader2 className="h-4 w-4 animate-spin" />Processing...</>
+                      : <>Submit Application</>}
                   </Button>
                 </div>
               )}
