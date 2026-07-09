@@ -1,6 +1,7 @@
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import { initMonitoring, reportError } from "./lib/monitoring";
+import { isChunkLoadError, reloadOnceForChunkError } from "./lib/lazyWithRetry";
 import "./index.css";
 
 initMonitoring();
@@ -24,7 +25,23 @@ if (missing.length > 0) {
   throw new Error(`Missing env vars: ${missing.join(', ')}`);
 }
 
+// Vite fires this when a dynamically imported chunk (or one of its deps) fails
+// to load — the classic "stale chunk after a deploy" case, which Safari reports
+// as a bare "Load failed". lazyWithRetry only guards the top-level page import;
+// this catches dependency-chunk failures that surface during preload. Recover
+// with one silent reload instead of leaving the user on a broken page.
+window.addEventListener('vite:preloadError', (event) => {
+  event.preventDefault();
+  reloadOnceForChunkError();
+});
+
 window.addEventListener('unhandledrejection', (event) => {
+  // Stale-chunk failures are transient and self-heal via the reload above, so
+  // don't page ourselves over them.
+  if (isChunkLoadError(event.reason)) {
+    reloadOnceForChunkError();
+    return;
+  }
   console.error('[Unhandled Promise Rejection]', event.reason);
   reportError(event.reason, { source: 'unhandledrejection' });
 });
