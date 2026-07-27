@@ -54,7 +54,7 @@ const Footer = () => (
               { label: "Home", to: "/" },
               { label: "About the Branch", to: "/#about" },
               { label: "Committees", to: "/#committees" },
-              { label: "Member Directory", to: "/anaocha/find-member" },
+              { label: "Member Directory", to: "/anaocha/members" },
               { label: "Apply for Services", to: "/anaocha/apply" },
               { label: "Resources", to: "/resources" },
             ].map((l) => (

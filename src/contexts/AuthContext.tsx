@@ -55,6 +55,35 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     await checkProfile(user.id);
   }, [user, checkProfile]);
 
+  const isLockStolenError = (error: unknown) => {
+    if (!(error instanceof Error)) return false;
+    return /Lock (was stolen by another request|broken by another request with the 'steal' option)/i.test(
+      error.message
+    );
+  };
+
+  const loadSession = useCallback(
+    async (attempt = 0) => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        setSession(session);
+        setUser(session?.user ?? null);
+        if (session?.user) {
+          await checkProfile(session.user.id);
+        }
+      } catch (error) {
+        if (attempt < 2 && isLockStolenError(error)) {
+          await new Promise((resolve) => setTimeout(resolve, 200));
+          return loadSession(attempt + 1);
+        }
+        console.error("supabase.auth.getSession failed:", error);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [checkProfile]
+  );
+
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
@@ -81,17 +110,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     );
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-      if (session?.user) {
-        checkProfile(session.user.id);
-      }
-    });
+    loadSession();
 
     return () => subscription.unsubscribe();
-  }, [checkProfile]);
+  }, [checkProfile, loadSession]);
 
   // Real-time listener for profile status changes (auto-update when admin approves)
   useEffect(() => {

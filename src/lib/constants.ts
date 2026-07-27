@@ -19,23 +19,26 @@ export const BRANCH_BANK_ACCOUNT = {
   accountNumber: "0696557772",
 } as const;
 
-// Branch committees. Used both on the landing page and as the admin dropdown
-// when assigning a committee member, so the names stay in sync.
-export const COMMITTEE_NAMES = [
-  "Human Rights",
-  "ICT & Tech",
-  "Women Forum",
-  "Young Lawyers",
-  "Disciplinary",
-  "Journal",
-  "Welfare",
-  "Publicity",
-  "Sports",
-  "Bar Centre",
-  "Continuing Legal Education",
-  "Advisory",
-  "Bar/Bench Relationship",
+// Branch committees — the single source of truth. Consumed by the landing page
+// (which attaches an icon per name) and by the admin dropdown when assigning a
+// committee member, so the names stay in sync from one place.
+export const COMMITTEES = [
+  { name: "Human Rights", desc: "Dedicated to legal aid and protecting fundamental liberties within our jurisdiction." },
+  { name: "ICT & Tech", desc: "Driving digital transformation and innovation in legal practice." },
+  { name: "Women Forum", desc: "Promoting the interests of female practitioners and gender equity in law." },
+  { name: "Young Lawyers", desc: "Empowering new entrants through mentorship and professional workshops." },
+  { name: "Disciplinary", desc: "Upholding the highest standards of professional ethics and conduct." },
+  { name: "Journal", desc: "Publishing and curating legal research and academic contributions." },
+  { name: "Welfare", desc: "Supporting members' well-being and providing social assistance." },
+  { name: "Publicity", desc: "Managing the branch's public image and communication strategy." },
+  { name: "Sports", desc: "Fostering camaraderie and fitness through sporting activities among members." },
+  { name: "Bar Centre", desc: "Overseeing the maintenance and development of the NBA Anaocha Bar Centre." },
+  { name: "Continuing Legal Education", desc: "Organizing CLE programmes to keep members current in law and practice." },
+  { name: "Advisory", desc: "Providing counsel and strategic guidance to the branch leadership." },
+  { name: "Bar/Bench Relationship", desc: "Fostering cordial relations between the Bar and the Bench in our jurisdiction." },
 ] as const;
+
+export const COMMITTEE_NAMES = COMMITTEES.map((c) => c.name);
 
 export const DUES_CATEGORY_LABELS: Record<string, string> = {
   branch_dues:    "Branch Dues",
