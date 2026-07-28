@@ -82,6 +82,10 @@ const AdminDues = () => {
       supabase.from("dues_items").select("*").order("year", { ascending: false }).order("created_at"),
       supabase.from("profiles").select("user_id, first_name, surname, email, year_of_call, rank").eq("status", "active"),
     ]);
+    const loadErr = itemsRes.error ?? membersRes.error;
+    if (loadErr) {
+      toast({ title: "Couldn't load dues", description: loadErr.message, variant: "destructive" });
+    }
     setItems((itemsRes.data as DuesItem[]) ?? []);
     setMembers((membersRes.data as any[]) ?? []);
     setLoading(false);
@@ -89,11 +93,33 @@ const AdminDues = () => {
 
   const loadCompliance = async (itemId: string, force = false) => {
     if (compliance[itemId] && !force) return;
-    const { data } = await supabase
+    // dues_payments.user_id references auth.users, not profiles, so PostgREST
+    // has no FK to embed through — member details are fetched and joined here.
+    const { data, error } = await supabase
       .from("dues_payments")
-      .select("user_id, status, amount, paid_at, receipt_url, rejection_reason, profiles(first_name, surname, email, year_of_call)")
+      .select("user_id, status, amount, paid_at, receipt_url, rejection_reason")
       .eq("dues_item_id", itemId);
-    setCompliance(prev => ({ ...prev, [itemId]: (data as any) ?? [] }));
+    if (error) {
+      toast({ title: "Couldn't load compliance", description: error.message, variant: "destructive" });
+      return;
+    }
+    const rows = data ?? [];
+    const userIds = [...new Set(rows.map(r => r.user_id))];
+    const profileMap: Record<string, DuesPayment["profiles"]> = {};
+    if (userIds.length > 0) {
+      const { data: profileData, error: profileErr } = await supabase
+        .from("profiles")
+        .select("user_id, first_name, surname, email, year_of_call")
+        .in("user_id", userIds);
+      if (profileErr) {
+        toast({ title: "Couldn't load member details", description: profileErr.message, variant: "destructive" });
+      }
+      (profileData ?? []).forEach(p => { profileMap[p.user_id] = p; });
+    }
+    setCompliance(prev => ({
+      ...prev,
+      [itemId]: rows.map(r => ({ ...r, profiles: profileMap[r.user_id] ?? null })) as DuesPayment[],
+    }));
   };
 
   const toggleExpand = async (itemId: string) => {
@@ -481,9 +507,16 @@ const AdminDues = () => {
                                           <Clock className="h-3.5 w-3.5" />Awaiting review
                                         </span>
                                       ) : status === "rejected" ? (
-                                        <span className="inline-flex items-center gap-1 text-red-700 text-xs font-semibold" title={p?.rejection_reason || undefined}>
-                                          <XCircle className="h-3.5 w-3.5" />Rejected
-                                        </span>
+                                        <div className="space-y-0.5">
+                                          <span className="inline-flex items-center gap-1 text-red-700 text-xs font-semibold">
+                                            <XCircle className="h-3.5 w-3.5" />Rejected
+                                          </span>
+                                          {p?.rejection_reason && (
+                                            <p className="text-[11px] leading-snug text-red-700/80 max-w-[220px]">
+                                              {p.rejection_reason}
+                                            </p>
+                                          )}
+                                        </div>
                                       ) : (
                                         <span className="inline-flex items-center gap-1 text-amber-700 text-xs font-semibold">
                                           <Clock className="h-3.5 w-3.5" />Outstanding

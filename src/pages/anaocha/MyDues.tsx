@@ -26,6 +26,12 @@ type Payment = {
   rejection_reason: string | null;
 };
 
+// Must stay in step with the dues-receipts bucket limits
+// (supabase/migrations/20260629000000_storage_hardening.sql).
+const RECEIPT_TYPES     = ["image/png", "image/jpeg", "application/pdf"];
+const RECEIPT_ACCEPT    = RECEIPT_TYPES.join(",");
+const RECEIPT_MAX_BYTES = 10 * 1024 * 1024;
+
 const STATUS_CONFIG = {
   verified: { label: "Verified",        icon: CheckCircle, color: "text-green-600", bg: "bg-green-50 border-green-100" },
   uploaded: { label: "Awaiting Review", icon: Clock,       color: "text-blue-600",  bg: "bg-blue-50 border-blue-100"   },
@@ -63,6 +69,24 @@ const MyDues = () => {
 
   const handleUpload = async (item: DuesItem, file: File) => {
     if (!user) return;
+    // Checked here so the member gets a readable message instead of the raw
+    // storage rejection the bucket would return.
+    if (!RECEIPT_TYPES.includes(file.type)) {
+      toast({
+        title: "Unsupported file type",
+        description: "Please upload your receipt as a JPG, PNG or PDF. Photos from some phones (HEIC/WebP) need converting first.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (file.size > RECEIPT_MAX_BYTES) {
+      toast({
+        title: "File too large",
+        description: "Receipts must be 10 MB or smaller. Try a lower-resolution photo.",
+        variant: "destructive",
+      });
+      return;
+    }
     setUploading(item.id);
     const ext  = file.name.split(".").pop();
     const path = `${user.id}/${item.id}.${ext}`;
@@ -234,7 +258,7 @@ const MyDues = () => {
                                   <input
                                     ref={el => { fileRefs.current[item.id] = el; }}
                                     type="file"
-                                    accept="image/*,.pdf"
+                                    accept={RECEIPT_ACCEPT}
                                     className="hidden"
                                     onChange={e => {
                                       const f = e.target.files?.[0];
@@ -258,7 +282,7 @@ const MyDues = () => {
                                   <input
                                     ref={el => { fileRefs.current[item.id] = el; }}
                                     type="file"
-                                    accept="image/*,.pdf"
+                                    accept={RECEIPT_ACCEPT}
                                     className="hidden"
                                     onChange={e => {
                                       const f = e.target.files?.[0];
